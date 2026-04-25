@@ -7,7 +7,7 @@
 
 # go-migrate
 
-Intelligent database migration toolkit with GORM struct integration and automated script generation.
+Database migration toolkit with GORM schema analysis, migration execution and status management.
 
 ---
 
@@ -22,27 +22,24 @@ Intelligent database migration toolkit with GORM struct integration and automate
 ## CHINESE README
 
 [中文说明](README.zh.md)
+
 <!-- TEMPLATE (EN) END: LANGUAGE NAVIGATION -->
 
 ## Features
 
 - **Smart Schema Analysis**: Auto-compare GORM models with existing database schemas
-- **Automated Script Generation**: Create migration scripts with intelligent version management
-- **Safe Operations**: DryRun mode and preview to ensure secure migrations
 - **Multi-Database Support**: Works with MySQL, PostgreSQL, SQLite through golang-migrate
-- **Comprehensive CLI**: Intuitive Cobra commands covering all migration operations
+- **Comprehensive CLI**: Intuitive Cobra commands with complete migration support
 - **Status Inspection**: Check database version, pending migrations and schema differences
 
 ## Core Packages
 
 | Package          | Purpose                                                    |
-|------------------|------------------------------------------------------------|
+| ---------------- | ---------------------------------------------------------- |
 | `checkmigration` | Compare GORM models with database, capture SQL differences |
 | `newmigrate`     | Create golang-migrate instance                             |
 | `migrationparam` | Migration connection management and debug mode settings    |
-| `newscripts`     | Generate next version migration scripts                    |
 | `cobramigration` | Cobra CLI commands (inc/dec/all)                           |
-| `previewmigrate` | Preview migrations before execution                        |
 | `migrationstate` | Check migration status                                     |
 
 ## Installation
@@ -73,8 +70,6 @@ import (
     "github.com/yylego/go-migrate/migrationparam"
     "github.com/yylego/go-migrate/migrationstate"
     "github.com/yylego/go-migrate/newmigrate"
-    "github.com/yylego/go-migrate/newscripts"
-    "github.com/yylego/go-migrate/previewmigrate"
     "github.com/golang-migrate/migrate/v4"
     mysqlmigrate "github.com/golang-migrate/migrate/v4/database/mysql"
     "github.com/spf13/cobra"
@@ -86,10 +81,10 @@ import (
 func main() {
     scriptsPath := "./scripts"
 
-    // MigrationParam with lazy initialization and unified resource management
+    // MigrationParam with on-demand initialization and unified resource management
     param := migrationparam.NewMigrationParam(
         func() *gorm.DB {
-            return setupYourDatabase() // Your GORM setup
+            return setupDatabase() // GORM setup goes here
         },
         func(db *gorm.DB) *migrate.Migrate {
             sqlDB := rese.P1(db.DB())
@@ -109,13 +104,7 @@ func main() {
     }
 
     rootCmd := &cobra.Command{Use: "app"}
-    rootCmd.AddCommand(newscripts.NewScriptCmd(&newscripts.Config{
-        Param:   param,
-        Options: newscripts.NewOptions(scriptsPath),
-        Objects: objects,
-    }))
     rootCmd.AddCommand(cobramigration.NewMigrateCmd(param))
-    rootCmd.AddCommand(previewmigrate.NewPreviewCmd(param, scriptsPath))
     rootCmd.AddCommand(migrationstate.NewStatusCmd(&migrationstate.Config{
         Param:       param,
         ScriptsPath: scriptsPath,
@@ -132,33 +121,35 @@ func main() {
 # Step 1: Check current status
 go run main.go status
 
-# Step 2: Update GORM model (add field, change type, etc.)
+# Step 2: Write migration scripts (hand-written / AI-generated)
+# e.g., scripts/000001_xxx.up.sql and scripts/000001_xxx.down.sql
 
-# Step 3: Generate migration script
-go run main.go new-script
-# Creates: scripts/000001_xxx.up.sql and scripts/000001_xxx.down.sql
-
-# Step 4: Preview pending execution
-go run main.go preview inc
-
-# Step 5: Execute migration
+# Step 3: Execute migration
 go run main.go migrate inc    # One step
-go run main.go migrate all    # All pending
+go run main.go migrate all    # batch run
 ```
 
-## CLI Commands
+## AI-Driven Script Authoring
 
-| Command | Description |
-|---------|-------------|
-| `status` | Show database version, pending migrations, schema diff |
-| `new-script` | Generate migration scripts based on schema changes |
-| `new-script create` | Create new migration script with options |
-| `new-script update` | Update latest uncommitted migration script |
-| `preview inc` | Preview next migration without executing |
-| `migrate` | Show current migration version |
-| `migrate inc` | Execute next migration |
-| `migrate dec` | Rollback one migration |
-| `migrate all` | Execute all pending migrations |
+Previous versions included built-in script generation (`newscripts`) and migration preview (`previewmigrate`) packages. These have been removed:
+
+- **AI produces more accurate scripts**: AI assistants (e.g., Claude Code) can read GORM struct changes and produce precise migration SQL without a database connection.
+- **AI prefers hand-writing**: Even when docs emphasize using the package, AI assistants notice existing `migrations` files, then guess the pattern and hand-write new ones — bypassing the package. Hand-written results are consistent and accurate, while package output is hit-and-miss; mixed usage causes inconsistencies, so dropping the generation feature (keeping just validation) was the cleanest choice.
+- **No database needed to create scripts**: The old approach required a running database to capture schema differences via GORM DryRun mode. AI produces scripts just from reading code.
+- **Preview had limitations**: MySQL does not support DDL transaction rollback, making the preview feature unreliable on the most common database engine.
+- **AI assists with errors**: Preview existed to avoid stepping through fixes once a mid-migration failure occurs. Now when errors arise, AI can guide a swift rollback to the previous state. Since migrations often run on test environments first, since failures are uncommon, and since AI handles them fine, the preview step has become redundant.
+
+The updated architecture focuses on what AI cannot replace: **schema validation, migration execution, and status management**. Script authoring is delegated to AI / hand-written approaches.
+
+## CLI Command List
+
+| Command       | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| `status`      | Show database version, pending migrations, schema diff |
+| `migrate`     | Show current migration version                         |
+| `migrate inc` | Execute next migration                                 |
+| `migrate dec` | Rollback one migration                                 |
+| `migrate all` | Execute pending migrations at once                     |
 
 ## Database Support
 
@@ -210,25 +201,6 @@ migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAnd
 }))
 ```
 
-### Custom Script Naming
-
-```go
-// Configure version pattern and description
-naming := &newscripts.ScriptNaming{
-    VersionType: newscripts.VersionTime, // Use timestamp: 20250621103045
-    Description: "add_user_table",       // Script description
-}
-// Generates: 20250621103045_add_user_table.up.sql
-```
-
-### Migration Options
-
-```go
-options := newscripts.NewOptions("./scripts")
-options.DryRun = true        // Preview without writing files
-options.SurveyWritten = true // Prompt before writing
-```
-
 ## Examples
 
 See [internal/demos/](internal/demos) with complete working examples:
@@ -238,10 +210,9 @@ See [internal/demos/](internal/demos) with complete working examples:
 
 ```bash
 cd internal/demos/demo1x
-make STATUS              # Check status
-make CREATE-SCRIPT-CREATE-TABLE  # Generate scripts
-make MIGRATE-PREVIEW-INC # Preview
-make MIGRATE-ALL         # Execute
+make STATUS       # Check status
+make MIGRATE-INC  # Execute next
+make MIGRATE-ALL  # batch run
 ```
 
 <!-- TEMPLATE (EN) BEGIN: STANDARD PROJECT FOOTER -->

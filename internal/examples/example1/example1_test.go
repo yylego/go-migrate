@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/yylego/go-migrate/internal/tests"
-	"github.com/yylego/go-migrate/newmigrate"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/yylego/go-migrate/internal/tests"
+	"github.com/yylego/go-migrate/newmigrate"
 	"github.com/yylego/must"
 	"github.com/yylego/rese"
 	"github.com/yylego/runpath"

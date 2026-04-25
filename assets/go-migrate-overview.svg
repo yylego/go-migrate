@@ -54,10 +54,10 @@
     <!-- Arrow 2 -->
     <line x1="305" y1="100" x2="335" y2="100" stroke="#4a90e2" stroke-width="2" marker-end="url(#arrow)"/>
 
-    <!-- Step 3: Generate Scripts -->
+    <!-- Step 3: Write Scripts (AI) -->
     <g transform="translate(340,60)">
         <rect width="130" height="80" fill="#fff" stroke="#e67e22" stroke-width="2" rx="6"/>
-        <text x="65" y="35" text-anchor="middle" class="box-label">Generate Scripts</text>
+        <text x="65" y="35" text-anchor="middle" class="box-label">Write Scripts (AI)</text>
         <text x="65" y="52" text-anchor="middle" class="box-desc">000001_xxx.up.sql</text>
         <text x="65" y="65" text-anchor="middle" class="box-desc">000001_xxx.down.sql</text>
     </g>

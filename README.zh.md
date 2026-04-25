@@ -7,7 +7,7 @@
 
 # go-migrate
 
-智能数据库迁移工具包，集成 GORM 模型分析和自动化脚本生成功能。
+数据库迁移工具包，集成 GORM 模型分析、迁移执行和状态管理功能。
 
 ---
 
@@ -22,28 +22,25 @@
 ## 英文文档
 
 [ENGLISH README](README.md)
+
 <!-- TEMPLATE (ZH) END: LANGUAGE NAVIGATION -->
 
 ## 核心特性
 
 - **智能结构分析**：自动对比 GORM 模型与现有数据库结构
-- **自动脚本生成**：智能版本管理的迁移脚本创建功能
-- **安全操作模式**：DryRun 模式和预览确保迁移安全
 - **多数据库支持**：通过 golang-migrate 支持 MySQL、PostgreSQL、SQLite
 - **全面 CLI 支持**：直观的 Cobra 命令覆盖所有迁移操作
 - **状态检查功能**：检查数据库版本、待处理迁移和结构差异
 
 ## 核心包
 
-| 包名               | 用途                           |
-|------------------|------------------------------|
-| `checkmigration` | 对比 GORM 模型与数据库，捕获 SQL 差异     |
-| `newmigrate`     | 创建 golang-migrate 实例         |
-| `migrationparam` | 迁移连接管理和调试模式控制                |
-| `newscripts`     | 生成下一版本迁移脚本                   |
-| `cobramigration` | Cobra CLI 命令 (inc/dec/all) |
-| `previewmigrate` | 执行前预览迁移                      |
-| `migrationstate` | 检查迁移状态                       |
+| 包名             | 用途                                  |
+| ---------------- | ------------------------------------- |
+| `checkmigration` | 对比 GORM 模型与数据库，捕获 SQL 差异 |
+| `newmigrate`     | 创建 golang-migrate 实例              |
+| `migrationparam` | 迁移连接管理和调试模式控制            |
+| `cobramigration` | Cobra CLI 命令 (inc/dec/all)          |
+| `migrationstate` | 检查迁移状态                          |
 
 ## 安装
 
@@ -73,8 +70,6 @@ import (
     "github.com/yylego/go-migrate/migrationparam"
     "github.com/yylego/go-migrate/migrationstate"
     "github.com/yylego/go-migrate/newmigrate"
-    "github.com/yylego/go-migrate/newscripts"
-    "github.com/yylego/go-migrate/previewmigrate"
     "github.com/golang-migrate/migrate/v4"
     mysqlmigrate "github.com/golang-migrate/migrate/v4/database/mysql"
     "github.com/spf13/cobra"
@@ -89,7 +84,7 @@ func main() {
     // MigrationParam 延迟初始化和统一资源管理
     param := migrationparam.NewMigrationParam(
         func() *gorm.DB {
-            return setupYourDatabase() // 你的 GORM 配置
+            return setupDatabase() // 你的 GORM 配置
         },
         func(db *gorm.DB) *migrate.Migrate {
             sqlDB := rese.P1(db.DB())
@@ -109,13 +104,7 @@ func main() {
     }
 
     rootCmd := &cobra.Command{Use: "app"}
-    rootCmd.AddCommand(newscripts.NewScriptCmd(&newscripts.Config{
-        Param:   param,
-        Options: newscripts.NewOptions(scriptsPath),
-        Objects: objects,
-    }))
     rootCmd.AddCommand(cobramigration.NewMigrateCmd(param))
-    rootCmd.AddCommand(previewmigrate.NewPreviewCmd(param, scriptsPath))
     rootCmd.AddCommand(migrationstate.NewStatusCmd(&migrationstate.Config{
         Param:       param,
         ScriptsPath: scriptsPath,
@@ -132,33 +121,35 @@ func main() {
 # 步骤 1: 检查当前状态
 go run main.go status
 
-# 步骤 2: 更新 GORM 模型（添加字段、修改类型等）
-
-# 步骤 3: 生成迁移脚本
-go run main.go new-script
+# 步骤 2: 编写迁移脚本（手动编写或借助 AI）
 # 创建: scripts/000001_xxx.up.sql 和 scripts/000001_xxx.down.sql
 
-# 步骤 4: 预览待执行内容
-go run main.go preview inc
-
-# 步骤 5: 执行迁移
+# 步骤 3: 执行迁移
 go run main.go migrate inc    # 单步执行
 go run main.go migrate all    # 执行所有待处理
 ```
 
-## CLI 命令
+## 由 AI 驱动的脚本编写
 
-| 命令 | 描述 |
-|------|------|
-| `status` | 显示数据库版本、待处理迁移、结构差异 |
-| `new-script` | 从模型变更生成迁移脚本 |
-| `new-script create` | 创建新迁移脚本（支持选项） |
-| `new-script update` | 更新最新未提交的迁移脚本 |
-| `preview inc` | 预览下一次迁移而不执行 |
-| `migrate` | 显示当前迁移版本 |
-| `migrate inc` | 执行下一次迁移 |
-| `migrate dec` | 回滚一次迁移 |
-| `migrate all` | 执行所有待处理迁移 |
+该项目早期版本包含内置的脚本生成（`newscripts`）和预览（`previewmigrate`）功能包，现已移除。具体改动原因：
+
+- **AI 写脚本更准确**：Claude Code 等 AI 工具可以直接阅读 GORM 模型变更，准确生成迁移 SQL 语句。
+- **AI 总是绕过工具**：即使在文档中反复强调要走工具生成脚本，AI 阅读项目时一看到 migrations 目录和已有脚本样例，就会自行推断格式直接手写新脚本，绕过工具。手写结果反而稳定准确，而工具产物时好时坏；与其混用造成不一致，不如直接放弃脚本生成功能，只保留校验部分。
+- **脚本创建不依赖数据库**：原工具需要运行中的数据库，通过 GORM DryRun 模式捕获结构差异。AI 只需阅读代码即可生成脚本。
+- **预览功能有局限**：MySQL 不支持 DDL 事务回滚，导致预览功能在最常用的数据库上不可靠。
+- **出错有 AI 协助**：原先设计预览是为了避免迁移中途出错后需要人工逐步排查；如今出错后只需交给 AI，它能机智引导快速回滚到出错前的状态。考虑到迁移通常先在本地或测试环境演练、失败本就少见，加上 AI 的处理能力又足够强，预览这一环节就显得多余。
+
+当前架构聚焦于 AI 无法替代的能力：**结构验证、迁移执行和状态管理**。脚本编写交由 AI 或手动完成。
+
+## CLI 命令清单
+
+| 命令          | 描述                                 |
+| ------------- | ------------------------------------ |
+| `status`      | 显示数据库版本、待处理迁移、结构差异 |
+| `migrate`     | 显示当前迁移版本                     |
+| `migrate inc` | 执行下一次迁移                       |
+| `migrate dec` | 回滚一次迁移                         |
+| `migrate all` | 执行所有待处理迁移                   |
 
 ## 数据库支持
 
@@ -210,25 +201,6 @@ migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAnd
 }))
 ```
 
-### 自定义脚本命名
-
-```go
-// 配置版本模式和描述
-naming := &newscripts.ScriptNaming{
-    VersionType: newscripts.VersionTime, // 使用时间戳: 20250621103045
-    Description: "add_user_table",       // 脚本描述
-}
-// 生成: 20250621103045_add_user_table.up.sql
-```
-
-### 迁移选项
-
-```go
-options := newscripts.NewOptions("./scripts")
-options.DryRun = true        // 预览模式，不写入文件
-options.SurveyWritten = true // 写入前提示确认
-```
-
 ## 示例
 
 参见 [internal/demos](internal/demos) 中的完整工作示例：
@@ -238,10 +210,9 @@ options.SurveyWritten = true // 写入前提示确认
 
 ```bash
 cd internal/demos/demo1x
-make STATUS              # 检查状态
-make CREATE-SCRIPT-CREATE-TABLE  # 生成脚本
-make MIGRATE-PREVIEW-INC # 预览
-make MIGRATE-ALL         # 执行
+make STATUS       # 检查状态
+make MIGRATE-INC  # 单步执行
+make MIGRATE-ALL  # 执行全部
 ```
 
 <!-- TEMPLATE (ZH) BEGIN: STANDARD PROJECT FOOTER -->

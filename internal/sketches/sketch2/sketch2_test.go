@@ -4,10 +4,10 @@ import (
 	"embed"
 	"testing"
 
-	"github.com/yylego/go-migrate/internal/tests"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/stretchr/testify/require"
+	"github.com/yylego/go-migrate/internal/tests"
 	"github.com/yylego/rese"
 )
 

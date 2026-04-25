@@ -10,9 +10,9 @@
 package cobramigration
 
 import (
+	"github.com/spf13/cobra"
 	"github.com/yylego/go-migrate/internal/utils"
 	"github.com/yylego/go-migrate/migrationparam"
-	"github.com/spf13/cobra"
 	"github.com/yylego/tint"
 )
 

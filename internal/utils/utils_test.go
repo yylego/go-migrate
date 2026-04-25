@@ -3,8 +3,8 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/yylego/go-migrate/internal/utils"
 	"github.com/stretchr/testify/require"
+	"github.com/yylego/go-migrate/internal/utils"
 )
 
 func TestNewUUID32s(t *testing.T) {

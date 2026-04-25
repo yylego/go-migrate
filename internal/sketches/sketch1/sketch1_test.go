@@ -4,11 +4,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/yylego/go-migrate/internal/tests"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/yylego/go-migrate/internal/tests"
 	"github.com/yylego/rese"
 	"github.com/yylego/runpath"
 )

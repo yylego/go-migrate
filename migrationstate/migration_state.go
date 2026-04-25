@@ -12,15 +12,15 @@ import (
 	"os"
 	"sort"
 
-	"github.com/yylego/go-migrate/checkmigration"
-	"github.com/yylego/go-migrate/migrationparam"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/yylego/erero"
-	"github.com/yylego/tint"
+	"github.com/yylego/go-migrate/checkmigration"
+	"github.com/yylego/go-migrate/migrationparam"
 	"github.com/yylego/rese"
+	"github.com/yylego/tint"
 	"gorm.io/gorm"
 )
 

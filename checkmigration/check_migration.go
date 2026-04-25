@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/yylego/go-migrate/migrationparam"
-	"github.com/yylego/tint"
 	"github.com/yylego/must"
 	"github.com/yylego/neatjson/neatjsons"
+	"github.com/yylego/tint"
 	"github.com/yylego/zaplog"
 	"go.uber.org/zap"
 	"gorm.io/gorm"

@@ -6,16 +6,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/spf13/cobra"
 	"github.com/yylego/go-migrate/cobramigration"
 	"github.com/yylego/go-migrate/internal/demos/demo2x/internal/models"
 	"github.com/yylego/go-migrate/migrationparam"
 	"github.com/yylego/go-migrate/migrationstate"
 	"github.com/yylego/go-migrate/newmigrate"
-	"github.com/yylego/go-migrate/newscripts"
-	"github.com/yylego/go-migrate/previewmigrate"
-	"github.com/golang-migrate/migrate/v4"
-	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/spf13/cobra"
 	"github.com/yylego/must"
 	"github.com/yylego/rese"
 	"github.com/yylego/runpath"
@@ -71,13 +69,7 @@ func main() {
 		randomSample(&models.InfoV1{}, &models.InfoV2{}, &models.InfoV3{}),
 	}
 
-	rootCmd.AddCommand(newscripts.NewScriptCmd(&newscripts.Config{
-		Param:   param,
-		Options: newscripts.NewOptions(scriptsInRoot),
-		Objects: objects,
-	}))
 	rootCmd.AddCommand(cobramigration.NewMigrateCmd(param))
-	rootCmd.AddCommand(previewmigrate.NewPreviewCmd(param, scriptsInRoot))
 	rootCmd.AddCommand(migrationstate.NewStatusCmd(&migrationstate.Config{
 		Param:       param,
 		ScriptsPath: scriptsInRoot,

@@ -83,7 +83,7 @@
     <!-- Arrow 2 -->
     <line x1="250" y1="190" x2="250" y2="215" stroke="#4a90e2" stroke-width="2" marker-end="url(#arrow-down)"/>
 
-    <!-- Step 3: Generate Scripts -->
+    <!-- Step 3: Generate Scripts (AI) -->
     <g transform="translate(150,220)">
         <rect width="200" height="55" fill="#fff" stroke="#e67e22" stroke-width="2" rx="6">
             <animate attributeName="stroke-width" values="2;2.5;2" dur="2.4s" repeatCount="indefinite"/>
@@ -94,24 +94,24 @@
     <!-- Package -->
     <g transform="translate(370,230)">
         <rect width="110" height="35" fill="#fef5e7" stroke="#e67e22" stroke-width="1" rx="4"/>
-        <text x="55" y="22" text-anchor="middle" class="pkg-name">newscripts</text>
+        <text x="55" y="22" text-anchor="middle" class="pkg-name">AI</text>
     </g>
 
     <!-- Arrow 3 -->
     <line x1="250" y1="275" x2="250" y2="300" stroke="#4a90e2" stroke-width="2" marker-end="url(#arrow-down)"/>
 
-    <!-- Step 4: Preview (optional) -->
+    <!-- Step 4: Review Scripts (AI) -->
     <g transform="translate(150,305)">
         <rect width="200" height="55" fill="#fff" stroke="#9b59b6" stroke-width="2" rx="6" stroke-dasharray="4,2">
             <animate attributeName="stroke-width" values="2;2.5;2" dur="2.5s" repeatCount="indefinite"/>
         </rect>
-        <text x="100" y="25" text-anchor="middle" class="box-label">Preview Migration</text>
-        <text x="100" y="43" text-anchor="middle" class="box-desc">Check before execution</text>
+        <text x="100" y="25" text-anchor="middle" class="box-label">Review Scripts</text>
+        <text x="100" y="43" text-anchor="middle" class="box-desc">AI review before execution</text>
     </g>
     <!-- Package -->
     <g transform="translate(370,315)">
         <rect width="110" height="35" fill="#f5eef8" stroke="#9b59b6" stroke-width="1" rx="4"/>
-        <text x="55" y="22" text-anchor="middle" class="pkg-name">previewmigrate</text>
+        <text x="55" y="22" text-anchor="middle" class="pkg-name">AI</text>
     </g>
 
     <!-- Arrow 4 -->
@@ -155,9 +155,9 @@
     <g transform="translate(150,570)">
         <rect width="200" height="60" fill="#fff" stroke="#ddd" stroke-width="1" rx="4"/>
         <text x="100" y="18" text-anchor="middle" class="box-desc">CLI Commands</text>
-        <text x="30" y="38" class="cmd-name">$ new-script</text>
-        <text x="120" y="38" class="cmd-name">$ preview inc</text>
-        <text x="30" y="52" class="cmd-name">$ migrate inc</text>
+        <text x="30" y="38" class="cmd-name">$ status</text>
+        <text x="120" y="38" class="cmd-name">$ migrate inc</text>
+        <text x="30" y="52" class="cmd-name">$ migrate dec</text>
         <text x="120" y="52" class="cmd-name">$ migrate all</text>
     </g>
 
