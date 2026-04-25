@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yylego/done"
 	"github.com/yylego/go-migrate/checkmigration"
+	"github.com/yylego/go-migrate/migrationkinds"
 	"github.com/yylego/must"
 	"github.com/yylego/neatjson/neatjsons"
 	"github.com/yylego/rese"
@@ -112,8 +113,9 @@ func TestCheckMigrate_Product(t *testing.T) {
 		tableName := extractTableNameFromCreateTable(op.ForwardSQL)
 		require.Equal(t, "products", tableName)
 
-		require.Equal(t, "CREATE TABLE", op.Kind.ForwardSubstr)
-		require.Equal(t, "DROP TABLE", op.Kind.ReverseSubstr)
+		require.Equal(t, migrationkinds.CreateTable, op.GetActionKind())
+		require.Equal(t, "CREATE TABLE", op.GetActionEnum().Meta().ForwardSubstr)
+		require.Equal(t, "DROP TABLE", op.GetActionEnum().Meta().ReverseSubstr)
 
 		showDebugScripts(t, migrateOps)
 
@@ -125,8 +127,9 @@ func TestCheckMigrate_Product(t *testing.T) {
 		require.Len(t, migrateOps, 3)
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `price` float64")
-			require.Equal(t, "ALTER TABLE", op.Kind.ForwardSubstr)
-			require.Equal(t, "ALTER TABLE", op.Kind.ReverseSubstr)
+			require.Equal(t, migrationkinds.AlterTable, op.GetActionKind())
+			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ForwardSubstr)
+			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ReverseSubstr)
 
 			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
 			require.Equal(t, "products", table)
@@ -134,8 +137,9 @@ func TestCheckMigrate_Product(t *testing.T) {
 		}
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `sku` varchar(50)")
-			require.Equal(t, "ALTER TABLE", op.Kind.ForwardSubstr)
-			require.Equal(t, "ALTER TABLE", op.Kind.ReverseSubstr)
+			require.Equal(t, migrationkinds.AlterTable, op.GetActionKind())
+			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ForwardSubstr)
+			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ReverseSubstr)
 
 			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
 			require.Equal(t, "products", table)
@@ -143,8 +147,9 @@ func TestCheckMigrate_Product(t *testing.T) {
 		}
 		{
 			op := requireOperation(t, migrateOps, "CREATE UNIQUE INDEX `idx_products_sku` ON `products`(`sku`)")
-			require.Equal(t, "CREATE UNIQUE INDEX", op.Kind.ForwardSubstr)
-			require.Equal(t, "DROP INDEX", op.Kind.ReverseSubstr)
+			require.Equal(t, migrationkinds.CreateUniqueIndex, op.GetActionKind())
+			require.Equal(t, "CREATE UNIQUE INDEX", op.GetActionEnum().Meta().ForwardSubstr)
+			require.Equal(t, "DROP INDEX", op.GetActionEnum().Meta().ReverseSubstr)
 
 			indexName, table := extractIndexAndTableFromCreateIndex(op.ForwardSQL)
 			require.Equal(t, "products", table)
@@ -184,14 +189,12 @@ func TestCheckMigrate_Product(t *testing.T) {
 	}))
 }
 
-// showDebugScripts outputs forward and reverse scripts with colored formatting
+// showDebugScripts outputs forward script with colored formatting
 //
-// showDebugScripts 输出带颜色格式化的正向和反向脚本
+// showDebugScripts 输出带颜色格式化的正向脚本
 func showDebugScripts(t *testing.T, migrateOps checkmigration.MigrationOps) {
 	forwardScript := migrateOps.GetForwardScript()
 	zaplog.ZAPS.Skip(1).SUG.Debug("forward:", "\n", tint.AQUA.Sprint(forwardScript))
-	reverseScript, _ := migrateOps.GetReverseScript()
-	zaplog.ZAPS.Skip(1).SUG.Debug("reverse:", "\n", tint.PINK.Sprint(reverseScript))
 }
 
 // requireOperation asserts operation exists and returns it with debug output

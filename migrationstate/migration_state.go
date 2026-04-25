@@ -147,9 +147,11 @@ func scanScriptVersions(scriptsPath string) ([]uint, error) {
 
 // ShowStatus outputs status information in a readable format
 // Colored output improves reading experience
+// The result (versions, schema diff SQL) prints in each run as the command output
 //
 // ShowStatus 以可读格式输出状态信息
 // 彩色输出提升阅读体验
+// 结果（版本、结构差异 SQL）作为命令输出，每次都会打印
 func ShowStatus(status *Status) {
 	tint.CYAN.ShowMessage("=== Migration Status ===")
 

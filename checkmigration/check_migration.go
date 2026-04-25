@@ -93,6 +93,12 @@ func GetMigrateOps(db *gorm.DB, objects []interface{}) MigrationOps {
 		DryRun: true,
 		Logger: sqlCapture,
 	}
+
+	// Known noise: GORM Migrator emits each DryRun SQL via fmt.Println on stdout
+	// See gorm/migrator/migrator.go printSQLLogger.Trace; the call is hardcoded
+	//
+	// 已知噪音：GORM Migrator 在 DryRun 模式下会用 fmt.Println 把每条 SQL 打到 stdout
+	// 见 gorm/migrator/migrator.go printSQLLogger.Trace，调用点是硬编码的
 	must.Done(db.Session(session).AutoMigrate(objects...))
 
 	// Display captured SQL statements for debugging

@@ -1,78 +1,49 @@
 package checkmigration
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/yylego/go-migrate/migrationkinds"
 	"github.com/yylego/tern"
-	"github.com/yylego/tern/zerotern"
 )
 
-const (
-	// raiseStatement provides safe placeholder for unimplemented reverse migrations
-	// Prevents accidental execution while clearly marking incomplete implementations
-	// Note: "SELECT 1 / 0;" was tested but doesn't effectively cause script failure
-	//
-	// raiseStatement 为未实现的反向迁移提供安全占位符
-	// 防止意外执行，同时明确标记不完整实现
-	// 注意：测试过 "SELECT 1 / 0;" 但不能有效地导致脚本失败
-	raiseStatement = "SELECT TODO / PANIC / RAISE / THROW;"
-)
-
-// MigrationKind represents the type and characteristics of a database migration operation
-// Contains substring patterns for identifying operation type and corresponding reverse operation
-// Used for automated reverse script generation and operation categorization
+// MigrationOp represents one captured database migration operation
 //
-// MigrationKind 表示数据库迁移操作的类型和特征
-// 包含用于识别操作类型和对应反向操作的子字符串模式
-// 用于自动反向脚本生成和操作分类
-type MigrationKind struct {
-	ForwardSubstr string // SQL pattern for forward operation // 正向操作的 SQL 模式
-	ReverseSubstr string // SQL pattern for reverse operation // 反向操作的 SQL 模式
-}
-
-var migrationKinds = []*MigrationKind{
-	{ForwardSubstr: "CREATE TABLE", ReverseSubstr: "DROP TABLE"},
-	{ForwardSubstr: "ALTER TABLE", ReverseSubstr: "ALTER TABLE"},
-	{ForwardSubstr: "ADD COLUMN", ReverseSubstr: "DROP COLUMN"},
-	{ForwardSubstr: "ADD INDEX", ReverseSubstr: "DROP INDEX"},
-	{ForwardSubstr: "CREATE INDEX", ReverseSubstr: "DROP INDEX"},
-	{ForwardSubstr: "CREATE UNIQUE INDEX", ReverseSubstr: "DROP INDEX"},
-}
-
-// MigrationOp represents a single database migration operation with forward SQL and operation metadata
-// Combines SQL statement with operation type information for comprehensive migration management
-// Supports both forward execution and reverse script generation
-//
-// MigrationOp 表示单个数据库迁移操作，包含正向 SQL 和操作元数据
-// 将 SQL 语句与操作类型信息相结合，用于全面的迁移管理
-// 支持正向执行和反向脚本生成
+// MigrationOp 表示一条捕获到的数据库迁移操作
 type MigrationOp struct {
-	ForwardSQL string         // SQL statement for forward migration // 正向迁移的 SQL 语句
-	Kind       *MigrationKind // Operation type and reverse pattern // 操作类型和反向模式
+	ForwardSQL string              // SQL statement of the forward migration // 正向迁移的 SQL 语句
+	ActionKind migrationkinds.Kind // Operation kind value // 操作类型值
 }
 
-// NewMigrationOp creates migration operation from SQL statement by matching against known patterns
-// Analyzes SQL content to determine operation type and appropriate reverse operation
-// Returns migration operation instance and success flag
+// NewMigrationOp wraps a SQL statement as MigrationOp when it matches one of the known kinds
+// Returns the wrapped operation and a success flag
 //
-// NewMigrationOp 通过与已知模式匹配，从 SQL 语句创建迁移操作
-// 分析 SQL 内容来确定操作类型和适当的反向操作
-// 返回迁移操作实例和成功标志
+// NewMigrationOp 当 SQL 匹配某种已知类型时，将其包装成 MigrationOp
+// 返回包装后的操作和匹配标志
 func NewMigrationOp(forwardSQL string) (*MigrationOp, bool) {
-	for _, sub := range migrationKinds {
-		if strings.Contains(forwardSQL, sub.ForwardSubstr) {
+	// Walk through each registered kind, skipping the default Unknown
+	// 遍历每种已注册的 kind，跳过默认的 Unknown
+	for _, kind := range migrationkinds.GetEnums().ListValid() {
+		elem := migrationkinds.GetEnums().MustGet(kind)
+		if strings.Contains(forwardSQL, elem.Meta().ForwardSubstr) {
 			return &MigrationOp{
 				ForwardSQL: forwardSQL,
-				Kind: &MigrationKind{ // clone it and return to outside
-					ForwardSubstr: sub.ForwardSubstr,
-					ReverseSubstr: sub.ReverseSubstr,
-				},
+				ActionKind: elem.Code(),
 			}, true
 		}
 	}
-	return nil, false
+	// Return Unknown as expected fallback when nothing matches
+	// GORM DryRun also captures schema-probing SQL (SELECT, PRAGMA, etc.)
+	// Such non-DDL statements receive Unknown as the chosen tag
+	//
+	// 匹配不到时按预期返回 Unknown 兜底
+	// GORM DryRun 也会捕获探测结构的 SQL（SELECT、PRAGMA 等）
+	// 这些非 DDL 语句被刻意归类为 Unknown
+	return &MigrationOp{
+		ForwardSQL: forwardSQL,
+		ActionKind: migrationkinds.Unknown,
+	}, false
 }
 
 // GetForwardSQL returns the forward migration SQL statement
@@ -82,24 +53,23 @@ func (op *MigrationOp) GetForwardSQL() string {
 	return op.ForwardSQL
 }
 
-// GetReverseSQL returns the reverse migration SQL statement with success flag
-// Returns placeholder statement when reverse migration is not implemented
+// GetActionKind returns the action kind value
 //
-// GetReverseSQL 返回反向迁移 SQL 语句和成功标志
-// 当反向迁移未实现时返回占位语句
-func (op *MigrationOp) GetReverseSQL() (string, bool) {
-	// TODO: Consider using specialized tools to implement reverse migration
-	// TODO: 考虑使用专门的工具来实现反向迁移
-	return raiseStatement + " -- " + op.Kind.ReverseSubstr, false
+// GetActionKind 返回操作类型值
+func (op *MigrationOp) GetActionKind() migrationkinds.Kind {
+	return op.ActionKind
 }
 
-// MigrationOps represents a collection of migration operations with batch processing capabilities
-// Provides methods for searching, SQL extraction, and script generation
-// Supports both forward and reverse migration script creation
+// GetActionEnum returns the enum item bound to the action kind
 //
-// MigrationOps 表示具有批量处理功能的迁移操作集合
-// 提供搜索、SQL 提取和脚本生成方法
-// 支持正向和反向迁移脚本创建
+// GetActionEnum 返回与操作类型绑定的枚举项
+func (op *MigrationOp) GetActionEnum() *migrationkinds.Enum {
+	return migrationkinds.GetEnums().MustGet(op.ActionKind)
+}
+
+// MigrationOps represents a collection of migration operations
+//
+// MigrationOps 表示迁移操作集合
 type MigrationOps []*MigrationOp
 
 // SearchOp finds migration operation matching the given forward SQL statement
@@ -116,10 +86,10 @@ func (ops MigrationOps) SearchOp(forwardSQL string) *MigrationOp {
 	})
 }
 
-// GetForwardSQLs extracts forward SQL statements from all migration operations
+// GetForwardSQLs extracts forward SQL statements from each migration operation
 // Returns slice of SQL strings in execution sequence
 //
-// GetForwardSQLs 从所有迁移操作中提取正向 SQL 语句
+// GetForwardSQLs 从每个迁移操作中提取正向 SQL 语句
 // 按执行顺序返回 SQL 字符串切片
 func (ops MigrationOps) GetForwardSQLs() []string {
 	var sqs = make([]string, 0, len(ops))
@@ -130,10 +100,10 @@ func (ops MigrationOps) GetForwardSQLs() []string {
 }
 
 // GetForwardScript generates complete forward migration script with semicolons
-// Combines all forward SQL statements into executable script format
+// Combines each forward SQL statement into executable script format
 //
 // GetForwardScript 生成带分号的完整正向迁移脚本
-// 将所有正向 SQL 语句组合成可执行的脚本格式
+// 将每个正向 SQL 语句组合成可执行的脚本格式
 func (ops MigrationOps) GetForwardScript() string {
 	var sqs = make([]string, 0, len(ops))
 	for _, op := range ops {
@@ -144,36 +114,4 @@ func (ops MigrationOps) GetForwardScript() string {
 		res += "\n"
 	}
 	return res
-}
-
-// GetReverseScript generates reverse migration script with success status
-// Reverses operation sequence (last-in-first-out) and includes TODO markers when needed
-//
-// GetReverseScript 生成反向迁移脚本并返回成功状态
-// 反转操作顺序（后进先出）并在需要时包含 TODO 标记
-func (ops MigrationOps) GetReverseScript() (string, bool) {
-	var sqs = make([]string, 0, len(ops))
-	var okk = true
-	// Execute reverse operations in reverse sequence, e.g., drop index before drop column
-	// 需要倒序执行逆向的操作，比如先删除索引再删除列
-	for idx := len(ops) - 1; idx >= 0; idx-- {
-		op := ops[idx]
-		reverseSQL, ok := op.GetReverseSQL()
-		if ok {
-			sqs = append(sqs, reverseSQL+";")
-			continue
-		}
-		okk = false // Mark as incomplete when any operation fails // 只要有一个出错，就记录下来有错
-		reverseSQL = zerotern.VF(reverseSQL, func() string {
-			return raiseStatement + " -- " + op.Kind.ReverseSubstr
-		})
-		forwardSQL := op.GetForwardSQL()
-		sqLine := fmt.Sprintf("-- reverse -- %s;\n%s; -- TODO", forwardSQL, reverseSQL)
-		sqs = append(sqs, sqLine) // Append with TODO comment when incomplete // 当有错误时，使用注释"待做"拼接它们
-	}
-	res := strings.Join(sqs, "\n\n")
-	if len(res) > 0 {
-		res += "\n"
-	}
-	return res, okk
 }
