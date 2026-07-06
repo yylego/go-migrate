@@ -1,10 +1,6 @@
-// Package migrationstate: Database migration status inspection and reporting system
-// Provides comprehensive status view of database version, script versions and schema differences
-// Enables users to understand current migration state before performing operations
+// Package migrationstate: reports the migration status — applied version, script versions, and pending schema changes
 //
-// migrationstate: 数据库迁移状态检查和报告系统
-// 提供数据库版本、脚本版本和结构差异的综合状态视图
-// 使用户在执行操作前了解当前迁移状态
+// migrationstate: 报告迁移状态——已应用版本、脚本版本、待处理的结构变更
 package migrationstate
 
 import (
@@ -53,13 +49,9 @@ type Status struct {
 	SchemaDiffSQLs      []string // SQL statements showing schema differences // 结构差异的 SQL 语句
 }
 
-// GetStatus analyzes current migration state and returns comprehensive status
-// Inspects database version, script versions and schema differences
-// Returns Status struct containing relevant information
+// GetStatus inspects the applied version, script versions, and schema diff, and returns them as Status
 //
-// GetStatus 分析当前迁移状态并返回综合状态
-// 检查数据库版本、脚本版本和结构差异
-// 返回包含相关信息的 Status 结构
+// GetStatus 检查已应用版本、脚本版本和结构差异，打包成 Status 返回
 func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, objects []any) (*Status, error) {
 	status := &Status{}
 
@@ -197,11 +189,9 @@ func ShowStatus(status *Status) {
 	}
 }
 
-// NewStatusCmd creates cobra command that displays migration status
-// Provides comprehensive view of current migration state
+// NewStatusCmd creates the cobra command that prints the migration status
 //
-// NewStatusCmd 创建显示迁移状态的 cobra 命令
-// 提供当前迁移状态的综合视图
+// NewStatusCmd 创建打印迁移状态的 cobra 命令
 func NewStatusCmd(cfg *Config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",

@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/yylego/go-migrate/migrationkinds"
 	"github.com/yylego/tern"
 )
 
@@ -12,38 +11,42 @@ import (
 //
 // MigrationOp 表示一条捕获到的数据库迁移操作
 type MigrationOp struct {
-	ForwardSQL string              // SQL statement of the forward migration // 正向迁移的 SQL 语句
-	ActionKind migrationkinds.Kind // Operation kind value // 操作类型值
+	ForwardSQL string // SQL statement of the forward migration // 正向迁移的 SQL 语句
 }
 
-// NewMigrationOp wraps a SQL statement as MigrationOp when it matches one of the known kinds
-// Returns the wrapped operation and a success flag
+// NewMigrationOp wraps a SQL statement as MigrationOp when it is a DDL migration
+// Returns the wrapped operation and a match flag
 //
-// NewMigrationOp 当 SQL 匹配某种已知类型时，将其包装成 MigrationOp
+// NewMigrationOp 当 SQL 是一条 DDL 迁移时，将其包装成 MigrationOp
 // 返回包装后的操作和匹配标志
 func NewMigrationOp(forwardSQL string) (*MigrationOp, bool) {
-	// Walk through each registered kind, skipping the default Unknown
-	// 遍历每种已注册的 kind，跳过默认的 Unknown
-	for _, kind := range migrationkinds.GetEnums().ListValid() {
-		elem := migrationkinds.GetEnums().MustGet(kind)
-		if strings.Contains(forwardSQL, elem.Meta().ForwardSubstr) {
-			return &MigrationOp{
-				ForwardSQL: forwardSQL,
-				ActionKind: elem.Code(),
-			}, true
-		}
-	}
-	// Return Unknown as expected fallback when nothing matches
 	// GORM DryRun also captures schema-probing SQL (SELECT, PRAGMA, etc.)
-	// Such non-DDL statements receive Unknown as the chosen tag
+	// Keep the DDL that AutoMigrate emits (CREATE / ALTER); skip the rest
 	//
-	// 匹配不到时按预期返回 Unknown 兜底
 	// GORM DryRun 也会捕获探测结构的 SQL（SELECT、PRAGMA 等）
-	// 这些非 DDL 语句被刻意归类为 Unknown
-	return &MigrationOp{
-		ForwardSQL: forwardSQL,
-		ActionKind: migrationkinds.Unknown,
-	}, false
+	// 只留 AutoMigrate 产出的 DDL（CREATE / ALTER），其余跳过
+	if !isMigrateDDL(forwardSQL) {
+		return nil, false
+	}
+	return &MigrationOp{ForwardSQL: forwardSQL}, true
+}
+
+// isMigrateDDL reports if the SQL is one of the DDL statements AutoMigrate emits
+// AutoMigrate builds tables, adds columns, and creates indexes; a hit on one of them means keep it
+//
+// isMigrateDDL 判断 SQL 是不是 AutoMigrate 会产出的那几种 DDL
+// AutoMigrate 只建表、加列、建索引；命中其一即保留
+func isMigrateDDL(forwardSQL string) bool {
+	head := strings.ToUpper(strings.TrimSpace(forwardSQL))
+	switch {
+	case strings.HasPrefix(head, "CREATE TABLE"),
+		strings.HasPrefix(head, "ALTER TABLE"),
+		strings.HasPrefix(head, "CREATE INDEX"),
+		strings.HasPrefix(head, "CREATE UNIQUE INDEX"):
+		return true
+	default:
+		return false
+	}
 }
 
 // GetForwardSQL returns the forward migration SQL statement
@@ -51,20 +54,6 @@ func NewMigrationOp(forwardSQL string) (*MigrationOp, bool) {
 // GetForwardSQL 返回正向迁移 SQL 语句
 func (op *MigrationOp) GetForwardSQL() string {
 	return op.ForwardSQL
-}
-
-// GetActionKind returns the action kind value
-//
-// GetActionKind 返回操作类型值
-func (op *MigrationOp) GetActionKind() migrationkinds.Kind {
-	return op.ActionKind
-}
-
-// GetActionEnum returns the enum item bound to the action kind
-//
-// GetActionEnum 返回与操作类型绑定的枚举项
-func (op *MigrationOp) GetActionEnum() *migrationkinds.Enum {
-	return migrationkinds.GetEnums().MustGet(op.ActionKind)
 }
 
 // MigrationOps represents a collection of migration operations

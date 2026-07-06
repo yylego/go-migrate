@@ -1,8 +1,8 @@
-// Package migrationparam: Database migration instance factory with multiple initialization strategies
-// Provides flexible migration creation supporting file systems, embedded resources and database drivers
+// Package migrationparam: holds the database and migration, each built on first access
+// Releases both via cleanup once the operations complete
 //
-// migrationparam: 数据库迁移实例工厂，支持多种初始化策略
-// 提供灵活的迁移创建，支持文件系统、嵌入资源和数据库驱动
+// migrationparam: 持有数据库和迁移实例，均在首次访问时才创建
+// 操作完成后通过 cleanup 一起释放
 package migrationparam
 
 import (
@@ -12,17 +12,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// MigrationParam provides unified database connection and migration management
-// Contains factory functions for creating connections and migrations on demand
-// Cleanup method handles proper resource release after operations complete
+// MigrationParam holds the database and migration behind on-demand build funcs
+// It creates each on first access and releases both on cleanup
 //
-// MigrationParam 提供统一的数据库连接和迁移管理
-// 包含按需创建连接和迁移的工厂函数
-// Cleanup 方法在操作完成后处理资源释放
+// MigrationParam 用按需构建函数持有数据库和迁移实例
+// 首次访问时创建，cleanup 时一起释放
 type MigrationParam struct {
-	newDB        func() *gorm.DB // Factory to create database connection on demand // 按需创建数据库连接的工厂函数
+	newDB        func() *gorm.DB // Builds the database connection on demand // 按需创建数据库连接的工厂函数
 	db           *gorm.DB
-	newMigration func(db *gorm.DB) *migrate.Migrate // Factory that accepts shared database connection // 接受共享数据库连接的工厂函数
+	newMigration func(db *gorm.DB) *migrate.Migrate // Builds the migration from a shared connection // 接受共享数据库连接的工厂函数
 	migration    *migrate.Migrate
 }
 

@@ -1,12 +1,8 @@
-// Package cobramigration: Cobra CLI integration for database migration operations
-// Provides command-line interface for migration execution with user-friendly commands
-// Features version display, batch migration, and step-by-step migration control
-// Integrates seamlessly with golang-migrate for robust migration management
+// Package cobramigration: Cobra CLI commands to run golang-migrate migrations
+// Covers version reporting, batch migration, and step-by-step control
 //
-// cobramigration: 用于数据库迁移操作的 Cobra CLI 集成
-// 为迁移执行提供命令行接口，具有用户友好的命令
-// 具有版本显示、批量迁移和逐步迁移控制功能
-// 与 golang-migrate 无缝集成，提供稳健的迁移管理
+// cobramigration: 运行 golang-migrate 迁移的 Cobra CLI 命令
+// 涵盖版本查看、全量迁移、逐步迁移控制
 package cobramigration
 
 import (
@@ -16,13 +12,11 @@ import (
 	"github.com/yylego/tint"
 )
 
-// NewMigrateCmd creates comprehensive migration command with subcommands for all migration operations
-// Uses lazy initialization - connections created only when command runs (not during command tree building)
-// Migration connection interface ensures proper resource cleanup after operations
+// NewMigrateCmd builds the migrate command tree with its subcommands
+// Connections open just when a command runs, not while the tree is built; each run cleans them up
 //
-// NewMigrateCmd 创建包含子命令的综合迁移命令，用于所有迁移操作
-// 使用延迟初始化 - 仅在命令运行时创建连接（而非命令树构建时）
-// 迁移连接接口确保操作后正确清理资源
+// NewMigrateCmd 构建 migrate 命令树及其子命令
+// 连接在命令运行时才建立（而非构建命令树时），每次运行结束会清理
 func NewMigrateCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	// Create root command
 	var rootCmd = &cobra.Command{

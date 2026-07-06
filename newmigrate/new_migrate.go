@@ -1,12 +1,6 @@
-// Package newmigrate: Database migration instance creation with multiple initialization strategies
-// Provides flexible migration setup supporting file systems, embedded resources and database drivers
-// Features generic type parameters and automatic registration and configuration
-// Integrates with golang-migrate to provide robust versioning and execution
+// Package newmigrate: builds a golang-migrate instance from scripts / embed.FS against a target database
 //
-// newmigrate: 数据库迁移实例工厂，支持多种初始化策略
-// 提供灵活的迁移创建，支持文件系统、嵌入资源和数据库驱动
-// 具有泛型类型参数，用于自动驱动注册和配置
-// 与 golang-migrate 库集成，提供稳健的版本控制和执行
+// newmigrate: 从脚本 / embed.FS 针对目标数据库构建 golang-migrate 实例
 package newmigrate
 
 import (
@@ -101,13 +95,11 @@ func NewWithScriptsAndDatabase(param *ScriptsAndDatabaseParam) (*migrate.Migrate
 	return migration, nil
 }
 
-// EmbedFsAndDatabaseParam contains configuration for embedded file system migration with database driver
-// Enables migration scripts to be embedded into executable file
-// Supports self-contained applications with built-in migration capabilities
+// EmbedFsAndDatabaseParam configures a migration whose scripts live in an embed.FS
+// The scripts ship inside the built program, so no separate files are needed at runtime
 //
-// EmbedFsAndDatabaseParam 包含嵌入文件系统迁移的配置和数据库驱动
-// 支持将迁移脚本嵌入到二进制文件中进行分发
-// 支持具有内置迁移功能的自包含应用程序
+// EmbedFsAndDatabaseParam 配置迁移脚本放在 embed.FS 里的迁移
+// 脚本随二进制一起打包，运行时无需额外的脚本文件
 type EmbedFsAndDatabaseParam struct {
 	MigrationsFS     *embed.FS       // Embedded file system with migrations // 包含迁移的嵌入文件系统
 	EmbedDirName     string          // DIR name within embedded FS // 嵌入 FS 中的 DIR 名称
@@ -115,13 +107,9 @@ type EmbedFsAndDatabaseParam struct {
 	DatabaseInstance database.Driver // Database driver instance // 数据库驱动实例
 }
 
-// NewWithEmbedFsAndDatabase creates migration instance using embedded file system and database driver
-// Enables self-contained binaries with built-in migration scripts
-// Returns configured migration instance prepared to execute
+// NewWithEmbedFsAndDatabase builds a migration whose scripts come from an embed.FS
 //
-// NewWithEmbedFsAndDatabase 使用嵌入文件系统和数据库驱动创建迁移实例
-// 支持带有内置迁移脚本的自包含二进制文件
-// 返回已配置的迁移实例，可运行
+// NewWithEmbedFsAndDatabase 用 embed.FS 里的脚本构建迁移实例
 func NewWithEmbedFsAndDatabase(param *EmbedFsAndDatabaseParam) (*migrate.Migrate, error) {
 	const sourceName = "iofs"
 	// Reference: https://github.com/golang-migrate/migrate/blob/278833935c12dda022b1355f33a897d895501c45/source/iofs/example_test.go#L22

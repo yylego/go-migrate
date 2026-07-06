@@ -19,7 +19,7 @@ import (
 
 type LoggerDebug struct{}
 
-func (l *LoggerDebug) Printf(format string, values ...interface{}) {
+func (l *LoggerDebug) Printf(format string, values ...any) {
 	fmt.Println(tint.PINK.Sprint("->"), tint.BLUE.Sprint(strings.TrimSpace(fmt.Sprintf(format, values...))))
 }
 

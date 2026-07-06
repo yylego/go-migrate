@@ -1,12 +1,8 @@
-// Package checkmigration: Database schema migration validation and SQL generation engine
-// Performs intelligent comparison between GORM model definitions and actual database schemas
-// Captures and parses SQL statements from GORM's DryRun mode to identify migration requirements
-// Generates both forward and reverse migration scripts with proper categorization
+// Package checkmigration: reports the schema changes that GORM AutoMigrate would run
+// Captures AutoMigrate's SQL via DryRun mode and keeps the DDL statements
 //
-// checkmigration: 数据库结构迁移验证和 SQL 生成引擎
-// 在 GORM 模型定义与实际数据库结构之间执行智能比较
-// 从 GORM 的 DryRun 模式捕获和解析 SQL 语句，识别迁移需求
-// 生成正向和反向迁移脚本，并进行适当分类
+// checkmigration: 报告 GORM AutoMigrate 会执行的 schema 变更
+// 用 DryRun 模式捕获 AutoMigrate 的 SQL，只留 DDL 语句
 package checkmigration
 
 import (
@@ -25,13 +21,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// SqlCapture implements GORM logger interface to capture executed SQL statements
-// Uses slice collection to record SQL operations during DryRun mode
-// Provides tracing capabilities for migration analysis and script generation
+// SqlCapture implements the GORM log interface to collect the SQL it sees
+// Records each SQL statement into a slice during DryRun mode
 //
-// SqlCapture 实现 GORM 日志接口来捕获执行的 SQL 语句
-// 使用切片集合在 DryRun 模式下记录 SQL 操作
-// 为迁移分析和脚本生成提供跟踪功能
+// SqlCapture 实现 GORM 日志接口，收集经过的 SQL
+// 在 DryRun 模式下把每条 SQL 记进切片
 type SqlCapture struct {
 	SQLs      []string // Collection of captured SQL statements // 捕获的 SQL 语句集合
 	debugMode bool     // Enable debug output // 调试模式
@@ -44,19 +38,19 @@ func (c *SqlCapture) LogMode(level logger.LogLevel) logger.Interface {
 	return c
 }
 
-func (c *SqlCapture) Info(_ context.Context, msg string, data ...interface{}) {
+func (c *SqlCapture) Info(_ context.Context, msg string, data ...any) {
 	if c.debugMode {
 		zaplog.SUG.Infoln("info", fmt.Sprintf(msg, data...))
 	}
 }
 
-func (c *SqlCapture) Warn(_ context.Context, msg string, data ...interface{}) {
+func (c *SqlCapture) Warn(_ context.Context, msg string, data ...any) {
 	if c.debugMode {
 		zaplog.SUG.Warnln("warn", fmt.Sprintf(msg, data...))
 	}
 }
 
-func (c *SqlCapture) Error(_ context.Context, msg string, data ...interface{}) {
+func (c *SqlCapture) Error(_ context.Context, msg string, data ...any) {
 	if c.debugMode {
 		zaplog.SUG.Errorln("error", fmt.Sprintf(msg, data...))
 	}
@@ -70,16 +64,12 @@ func (c *SqlCapture) Trace(_ context.Context, begin time.Time, fc func() (string
 	c.SQLs = append(c.SQLs, sqx)
 }
 
-// GetMigrateOps analyzes GORM models and generates migration operations based on database differences
-// Uses GORM DryRun mode with custom logger to capture SQL statements without execution
-// Returns structured migration operations with both forward and reverse SQL scripts
-// Debug output controlled by package-level SetDebugMode
+// GetMigrateOps captures the SQL AutoMigrate would run and keeps the DDL operations
+// Uses DryRun mode with a custom SQL capture; debug output via SetDebugMode
 //
-// GetMigrateOps 分析 GORM 模型并基于数据库差异生成迁移操作
-// 使用 GORM DryRun 模式和自定义日志来捕获 SQL 语句而不执行
-// 返回包含正向和反向 SQL 脚本的结构化迁移操作
-// 调试输出由包级别的 SetDebugMode 控制
-func GetMigrateOps(db *gorm.DB, objects []interface{}) MigrationOps {
+// GetMigrateOps 捕获 AutoMigrate 会执行的 SQL，只留 DDL 操作
+// 用 DryRun 模式配自定义 SQL 捕获；调试输出由 SetDebugMode 控制
+func GetMigrateOps(db *gorm.DB, objects []any) MigrationOps {
 	// Create SqlCapture for SQL capture
 	// 创建 SqlCapture 用于 SQL 捕获
 	sqlCapture := &SqlCapture{
@@ -109,23 +99,21 @@ func GetMigrateOps(db *gorm.DB, objects []interface{}) MigrationOps {
 
 	results := make([]*MigrationOp, 0, len(sqlCapture.SQLs))
 	for _, forwardSQL := range sqlCapture.SQLs {
-		// Parse SQL to determine if migration is needed
-		// 解析 SQL 以确定是否需要迁移
+		// Keep the DDL that AutoMigrate emits; skip the HasTable-style probing SELECT
+		// 只留 AutoMigrate 产出的 DDL；跳过 HasTable 之类的探测 SELECT
 		if migrationOp, match := NewMigrationOp(forwardSQL); match {
-			results = append(results, must.Full(migrationOp))
+			results = append(results, migrationOp)
 		}
 	}
 	return results
 }
 
-// CheckMigrate compares database schema against GORM models and returns missing SQL statements
-// Performs comprehensive analysis to identify required database migrations
-// Returns list of forward SQL statements that need to be executed
+// CheckMigrate returns the forward SQL statements GORM AutoMigrate would run
+// Wraps GetMigrateOps and pulls out each forward SQL
 //
-// CheckMigrate 对比数据库结构与 GORM 模型，返回缺失的 SQL 语句
-// 执行全面分析来识别所需的数据库迁移
-// 返回需要执行的正向 SQL 语句列表
-func CheckMigrate(db *gorm.DB, objects []interface{}) []string {
+// CheckMigrate 返回 GORM AutoMigrate 会执行的正向 SQL 语句
+// 封装 GetMigrateOps，取出每条正向 SQL
+func CheckMigrate(db *gorm.DB, objects []any) []string {
 	steps := GetMigrateOps(db, objects)
 	zaplog.LOG.Debug("missing", zap.Int("size", len(steps)))
 	sqs := steps.GetForwardSQLs()

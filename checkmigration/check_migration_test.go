@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yylego/done"
 	"github.com/yylego/go-migrate/checkmigration"
-	"github.com/yylego/go-migrate/migrationkinds"
 	"github.com/yylego/must"
 	"github.com/yylego/neatjson/neatjsons"
 	"github.com/yylego/rese"
@@ -113,10 +112,6 @@ func TestCheckMigrate_Product(t *testing.T) {
 		tableName := extractTableNameFromCreateTable(op.ForwardSQL)
 		require.Equal(t, "products", tableName)
 
-		require.Equal(t, migrationkinds.CreateTable, op.GetActionKind())
-		require.Equal(t, "CREATE TABLE", op.GetActionEnum().Meta().ForwardSubstr)
-		require.Equal(t, "DROP TABLE", op.GetActionEnum().Meta().ReverseSubstr)
-
 		showDebugScripts(t, migrateOps)
 
 		require.NoError(t, db.AutoMigrate(&ProductV1{}))
@@ -127,9 +122,6 @@ func TestCheckMigrate_Product(t *testing.T) {
 		require.Len(t, migrateOps, 3)
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `price` float64")
-			require.Equal(t, migrationkinds.AlterTable, op.GetActionKind())
-			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ForwardSubstr)
-			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ReverseSubstr)
 
 			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
 			require.Equal(t, "products", table)
@@ -137,9 +129,6 @@ func TestCheckMigrate_Product(t *testing.T) {
 		}
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `sku` varchar(50)")
-			require.Equal(t, migrationkinds.AlterTable, op.GetActionKind())
-			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ForwardSubstr)
-			require.Equal(t, "ALTER TABLE", op.GetActionEnum().Meta().ReverseSubstr)
 
 			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
 			require.Equal(t, "products", table)
@@ -147,9 +136,6 @@ func TestCheckMigrate_Product(t *testing.T) {
 		}
 		{
 			op := requireOperation(t, migrateOps, "CREATE UNIQUE INDEX `idx_products_sku` ON `products`(`sku`)")
-			require.Equal(t, migrationkinds.CreateUniqueIndex, op.GetActionKind())
-			require.Equal(t, "CREATE UNIQUE INDEX", op.GetActionEnum().Meta().ForwardSubstr)
-			require.Equal(t, "DROP INDEX", op.GetActionEnum().Meta().ReverseSubstr)
 
 			indexName, table := extractIndexAndTableFromCreateIndex(op.ForwardSQL)
 			require.Equal(t, "products", table)
