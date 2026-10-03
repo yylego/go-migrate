@@ -183,7 +183,7 @@ func ShowStatus(status *Status) {
 	// 结构差异
 	if status.SchemaDiffCount > 0 {
 		tint.YELLOW.ShowMessage(fmt.Sprintf("Schema Differences: %d", status.SchemaDiffCount))
-		fmt.Println("  (Database has changes not yet in migration scripts)")
+		fmt.Println("  (GORM detected schema differences; inspect migration scripts before applying changes)")
 		for i, statement := range status.SchemaDiffSQLs {
 			fmt.Println("->", i+1, "->", statement)
 		}

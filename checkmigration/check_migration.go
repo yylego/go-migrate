@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/yylego/go-migrate/migrationparam"
-	"github.com/yylego/neatjson/neatjsons"
 	"github.com/yylego/tint"
 	"github.com/yylego/zaplog"
 	"go.uber.org/zap"
@@ -92,13 +91,9 @@ func GetMigrateOps(db *gorm.DB, objects []any) (MigrationOps, error) {
 		Logger: capture,
 	}
 
-	// Known noise: GORM Migrator emits each DryRun SQL via fmt.Println on stdout
-	// See gorm/migrator/migrator.go printSQLLogger.Trace; fmt.Println is hardcoded
-	//
-	// 已知噪音：GORM Migrator 在 DryRun 模式下会用 fmt.Println 把每条 SQL 打到 stdout
-	// 见 gorm/migrator/migrator.go printSQLLogger.Trace，调用点是硬编码的
 	probe := db.Session(session)
 	adaptPostgresProbe(probe)
+	probe.Dialector = probeDialect{Dialector: probe.Dialector, capture: capture}
 	err := probe.AutoMigrate(objects...)
 	// APIs such as HasTable can hide metadata read errors from AutoMigrate.
 	// HasTable 等布尔接口可能吞掉查询错误，不能把探测失败误报为缺表。
@@ -107,12 +102,6 @@ func GetMigrateOps(db *gorm.DB, objects []any) (MigrationOps, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("migration probe: %w", err)
-	}
-
-	// Show captured SQL statements in debug mode
-	// 显示捕获的 SQL 语句用于调试
-	if capture.debugMode {
-		zaplog.SUG.Debugln("execute:", tint.BLUE.Sprint(neatjsons.S(capture.SQLs)))
 	}
 
 	results := make([]*MigrationOp, 0, len(capture.SQLs))
@@ -133,12 +122,14 @@ func CheckMigrate(db *gorm.DB, objects []any) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	zaplog.LOG.Debug("missing", zap.Int("size", len(steps)))
 	sqs := steps.GetForwardSQLs()
-	if len(sqs) > 0 {
-		debugMigrationSqs(sqs)
+	if migrationparam.GetDebugMode() {
+		zaplog.LOG.Debug("missing", zap.Int("size", len(steps)))
+		if len(sqs) > 0 {
+			debugMigrationSqs(sqs)
+		}
+		zaplog.SUG.Debugln("success")
 	}
-	zaplog.SUG.Debugln("success")
 	return sqs, nil
 }
 

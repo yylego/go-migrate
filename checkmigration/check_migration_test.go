@@ -48,6 +48,9 @@ func TestMain(m *testing.M) {
 // 测试从 V1 到 V2 的顺序模型升级，包括列和索引的添加
 func TestCheckMigrate(t *testing.T) {
 	db := caseDB
+	t.Cleanup(func() {
+		require.NoError(t, db.Migrator().DropTable(&AccountV1{}))
+	})
 
 	require.True(t, t.Run("case-1", func(t *testing.T) {
 		migrateSQLs, err := checkmigration.CheckMigrate(db, []any{&AccountV1{}})
@@ -106,6 +109,9 @@ func (u *AccountV2) TableName() string {
 // 测试 CREATE TABLE、ALTER TABLE 和 CREATE INDEX 操作
 func TestCheckMigrate_Product(t *testing.T) {
 	db := caseDB
+	t.Cleanup(func() {
+		require.NoError(t, db.Migrator().DropTable(&ProductV1{}))
+	})
 
 	require.True(t, t.Run("case-1", func(t *testing.T) {
 		migrateOps, err := checkmigration.GetMigrateOps(db, []any{&ProductV1{}})

@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// debugFlag toggles migration debug mode for the test run via the -debug-mode CLI flag
+// debugFlag toggles migration debug mode in the test run via the -debug-mode CLI flag
 //
 // debugFlag 通过 -debug-mode 命令行标志切换测试运行时的迁移调试模式
 var debugFlag = flag.Bool("debug-mode", false, "enable migration debug mode in tests")

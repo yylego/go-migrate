@@ -6,7 +6,6 @@
 [![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
-
 <!-- TEMPLATE (EN) CLOSE: BADGES -->
 
 # go-migrate
@@ -188,7 +187,7 @@ migrationDB := rese.V1(sqlite3migrate.WithInstance(conn, &sqlite3migrate.Config{
 
 ### Debug Mode
 
-Enable debug mode to see detailed SQL capture and migration analysis output:
+The default `status` output contains results and schema differences without probe SQL. Enable debug mode to inspect SQL traces; SQL capture and fault checks remain active in both modes. The demo commands accept `status --debug`:
 
 ```go
 import "github.com/yylego/go-migrate/migrationparam"
@@ -297,5 +296,4 @@ Welcome to contribute to this project via submitting merge requests and reportin
 ## GitHub Stars
 
 [![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
-
 <!-- TEMPLATE (EN) CLOSE: GITHUB STARS -->

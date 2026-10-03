@@ -6,7 +6,6 @@
 [![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
-
 <!-- TEMPLATE (ZH) CLOSE: BADGES -->
 
 # go-migrate
@@ -188,7 +187,7 @@ migrationDB := rese.V1(sqlite3migrate.WithInstance(conn, &sqlite3migrate.Config{
 
 ### 调试模式
 
-启用调试模式以查看详细的 SQL 捕获和迁移分析输出：
+默认 `status` 只打印结果和结构差异，不打印探测 SQL。开启调试模式后显示详细 SQL；两种模式都保留 SQL 捕获和错误检查。演示命令可使用 `status --debug`：
 
 ```go
 import "github.com/yylego/go-migrate/migrationparam"
@@ -297,5 +296,4 @@ MIT 许可证 - 详见 [LICENSE](LICENSE)。
 ## GitHub 标星点赞
 
 [![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
-
 <!-- TEMPLATE (ZH) CLOSE: GITHUB STARS -->
