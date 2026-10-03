@@ -1,5 +1,5 @@
 // Package cobramigration: Cobra CLI commands to run golang-migrate migrations
-// Covers version reporting, batch migration, and step-by-step control
+// Includes version reporting, batch migration, and single migration steps
 //
 // cobramigration: 运行 golang-migrate 迁移的 Cobra CLI 命令
 // 涵盖版本查看、全量迁移、逐步迁移控制
@@ -28,9 +28,9 @@ func NewMigrateCmd(param *migrationparam.MigrationParam) *cobra.Command {
 			migration, cleanup := param.GetMigration()
 			defer cleanup()
 
-			version, dirtyFlag, err := migration.Version()
+			version, incomplete, err := migration.Version()
 			utils.WhistleCause(err) // panic when cause is not expected
-			if dirtyFlag {
+			if incomplete {
 				tint.RED.ShowMessage(version, "(DIRTY)")
 			} else {
 				tint.GREEN.ShowMessage(version)
@@ -38,22 +38,22 @@ func NewMigrateCmd(param *migrationparam.MigrationParam) *cobra.Command {
 		},
 	}
 
-	rootCmd.AddCommand(newAllCmd(param)) // Append `all` subcommand // 添加 `all` 子命令
-	rootCmd.AddCommand(newIncCMD(param)) // Append `inc` subcommand // 添加 `inc` 子命令
-	rootCmd.AddCommand(newDecCMD(param)) // Append `dec` subcommand // 添加 `dec` 子命令
+	rootCmd.AddCommand(newBatchCmd(param)) // Append batch subcommand // 添加批量迁移子命令
+	rootCmd.AddCommand(newIncCMD(param))   // Append `inc` subcommand // 添加 `inc` 子命令
+	rootCmd.AddCommand(newDecCMD(param))   // Append `dec` subcommand // 添加 `dec` 子命令
 
 	return rootCmd
 }
 
-// newAllCmd creates command for executing all pending migrations
+// newBatchCmd creates a command to execute pending migrations in one batch
 // Performs complete database upgrade to latest schema version
 //
-// newAllCmd 创建用于执行所有待处理迁移的命令
+// newBatchCmd 创建用于执行所有待处理迁移的命令
 // 将数据库升级到最新的结构版本
-func newAllCmd(param *migrationparam.MigrationParam) *cobra.Command {
+func newBatchCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	return &cobra.Command{
-		Use:   "all",
-		Short: "Run all migration files",
+		Use:   "batch",
+		Short: "Run pending migration files",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			migration, cleanup := param.GetMigration()
@@ -66,8 +66,8 @@ func newAllCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	}
 }
 
-// newDecCMD creates command for rolling back one migration step
-// Safely reverts database schema by one version
+// newDecCMD creates a command to revert one migration step
+// Reverts the database schema to the preceding version
 //
 // newDecCMD 创建用于回滚一个迁移步骤的命令
 // 安全地将数据库结构回退一个版本
@@ -80,15 +80,15 @@ func newDecCMD(param *migrationparam.MigrationParam) *cobra.Command {
 			migration, cleanup := param.GetMigration()
 			defer cleanup()
 
-			// Rollback database by one migration step
+			// Revert one database migration step
 			// 将数据库回滚一个迁移步骤
 			utils.WhistleCause(migration.Steps(-1))
 		},
 	}
 }
 
-// newIncCMD creates command for executing next migration step
-// Advances database schema by one version forward
+// newIncCMD creates a command to execute the next migration step
+// Advances the database schema to the next version
 //
 // newIncCMD 创建用于执行下一个迁移步骤的命令
 // 将数据库结构向前推进一个版本

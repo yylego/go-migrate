@@ -17,13 +17,13 @@ import (
 	"gorm.io/gorm"
 )
 
-type LoggerDebug struct{}
+type DebugLog struct{}
 
-func (l *LoggerDebug) Printf(format string, values ...any) {
+func (*DebugLog) Printf(format string, values ...any) {
 	fmt.Println(tint.PINK.Sprint("->"), tint.BLUE.Sprint(strings.TrimSpace(fmt.Sprintf(format, values...))))
 }
 
-func (l *LoggerDebug) Verbose() bool {
+func (*DebugLog) Verbose() bool {
 	return true // 启用详细日志
 }
 
@@ -44,13 +44,13 @@ func CaseShowVersionNum(t *testing.T, migration *migrate.Migrate) {
 
 func caseShowVersionNum(t *testing.T, migration *migrate.Migrate, zapLog *zaplog.Zap) uint {
 	t.Log("---")
-	version, dirtyFlag, err := migration.Version()
+	version, incomplete, err := migration.Version()
 	if err != nil {
 		require.ErrorIs(t, err, migrate.ErrNilVersion)
 	} else {
 		require.NoError(t, err)
 	}
-	require.False(t, dirtyFlag)
+	require.False(t, incomplete)
 	zapLog.SUG.Debugln("version-num:", version)
 	return version
 }

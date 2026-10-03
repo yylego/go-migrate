@@ -1,5 +1,5 @@
 // Package checkmigration_test provides comprehensive tests that validate migration detection and SQL generation
-// Uses in-memory SQLite database to test schema comparison without external dependencies
+// Uses SQLite with mode=memory to test schema comparisons without extra services
 //
 // checkmigration_test 包提供验证迁移检测和 SQL 生成的综合测试
 // 使用内存 SQLite 数据库来测试结构比较，无需外部依赖
@@ -25,7 +25,7 @@ import (
 
 var caseDB *gorm.DB
 
-// TestMain initializes shared in-memory database instance and runs all tests
+// TestMain initializes a shared SQLite instance and runs the tests
 //
 // TestMain 初始化共享的内存数据库实例并运行所有测试
 func TestMain(m *testing.M) {
@@ -41,8 +41,8 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// TestCheckMigrate validates migration SQL detection with incremental schema changes
-// Tests sequential model upgrades from V1 to V2 with column and index additions
+// TestCheckMigrate validates migration SQL detection across schema changes
+// Tests upgrades from V1 to V2 with column and index additions
 //
 // TestCheckMigrate 验证带有增量结构变更的迁移 SQL 检测
 // 测试从 V1 到 V2 的顺序模型升级，包括列和索引的添加
@@ -50,17 +50,19 @@ func TestCheckMigrate(t *testing.T) {
 	db := caseDB
 
 	require.True(t, t.Run("case-1", func(t *testing.T) {
-		migrateSQLs := checkmigration.CheckMigrate(db, []any{&UserV1{}})
+		migrateSQLs, err := checkmigration.CheckMigrate(db, []any{&AccountV1{}})
+		require.NoError(t, err)
 		require.Len(t, migrateSQLs, 1)
 		// Confirm single CREATE TABLE statement // 确认是1个 CREATE TABLE 语句
 		tableName := extractTableNameFromCreateTable(migrateSQLs[0])
 		require.Equal(t, "users", tableName)
 
-		require.NoError(t, db.AutoMigrate(&UserV1{}))
+		require.NoError(t, db.AutoMigrate(&AccountV1{}))
 	}))
 
 	require.True(t, t.Run("case-2", func(t *testing.T) {
-		migrateSQLs := checkmigration.CheckMigrate(db, []any{&UserV2{}})
+		migrateSQLs, err := checkmigration.CheckMigrate(db, []any{&AccountV2{}})
+		require.NoError(t, err)
 		require.Len(t, migrateSQLs, 6)
 		// Use contains assertion since sequence is not guaranteed // 因为不检查顺序所以使用 contains 断言
 		require.Contains(t, migrateSQLs, "ALTER TABLE `users` ADD `age` bigint")
@@ -70,21 +72,21 @@ func TestCheckMigrate(t *testing.T) {
 		require.Contains(t, migrateSQLs, "CREATE UNIQUE INDEX `idx_users_student_no` ON `users`(`student_no`)")
 		require.Contains(t, migrateSQLs, "CREATE INDEX `idx_users_rank` ON `users`(`rank`)")
 
-		require.NoError(t, db.AutoMigrate(&UserV2{}))
+		require.NoError(t, db.AutoMigrate(&AccountV2{}))
 	}))
 }
 
-type UserV1 struct {
+type AccountV1 struct {
 	ID   uint   `gorm:"primaryKey"`
 	Name string `gorm:"size:100"`
 	Code string `gorm:"unique;"`
 }
 
-func (u *UserV1) TableName() string {
+func (u *AccountV1) TableName() string {
 	return "users"
 }
 
-type UserV2 struct {
+type AccountV2 struct {
 	ID        uint   `gorm:"primaryKey"`
 	Name      string `gorm:"size:200"`
 	Age       int    `gorm:"type:bigint"`
@@ -93,7 +95,7 @@ type UserV2 struct {
 	Rank      int    `gorm:"type:int;index;"`
 }
 
-func (u *UserV2) TableName() string {
+func (u *AccountV2) TableName() string {
 	return "users"
 }
 
@@ -106,7 +108,8 @@ func TestCheckMigrate_Product(t *testing.T) {
 	db := caseDB
 
 	require.True(t, t.Run("case-1", func(t *testing.T) {
-		migrateOps := checkmigration.GetMigrateOps(db, []any{&ProductV1{}})
+		migrateOps, err := checkmigration.GetMigrateOps(db, []any{&ProductV1{}})
+		require.NoError(t, err)
 		require.Len(t, migrateOps, 1)
 		op := migrateOps[0]
 		tableName := extractTableNameFromCreateTable(op.ForwardSQL)
@@ -118,19 +121,20 @@ func TestCheckMigrate_Product(t *testing.T) {
 	}))
 
 	require.True(t, t.Run("case-2", func(t *testing.T) {
-		migrateOps := checkmigration.GetMigrateOps(db, []any{&ProductV2{}})
+		migrateOps, err := checkmigration.GetMigrateOps(db, []any{&ProductV2{}})
+		require.NoError(t, err)
 		require.Len(t, migrateOps, 3)
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `price` float64")
 
-			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
+			table, column := extractAddedColumn(op.ForwardSQL)
 			require.Equal(t, "products", table)
 			require.Equal(t, "price", column)
 		}
 		{
 			op := requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `sku` varchar(50)")
 
-			table, column := extractTableAndColumnFromAlterTableAddColune(op.ForwardSQL)
+			table, column := extractAddedColumn(op.ForwardSQL)
 			require.Equal(t, "products", table)
 			require.Equal(t, "sku", column)
 		}
@@ -148,25 +152,26 @@ func TestCheckMigrate_Product(t *testing.T) {
 	}))
 
 	require.True(t, t.Run("case-3", func(t *testing.T) {
-		migrateOps := checkmigration.GetMigrateOps(db, []any{&ProductV3{}})
+		migrateOps, err := checkmigration.GetMigrateOps(db, []any{&ProductV3{}})
+		require.NoError(t, err)
 		require.Len(t, migrateOps, 6)
 
 		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `brand` varchar(100)"))
-		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `country` varchar(100)"))
+		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `nation` varchar(100)"))
 		{
-			op := requireOperation(t, migrateOps, "CREATE INDEX `idx_brand_country_union` ON `products`(`brand`,`country`)")
+			op := requireOperation(t, migrateOps, "CREATE INDEX `idx_brand_nation_union` ON `products`(`brand`,`nation`)")
 			indexName, table := extractIndexAndTableFromCreateIndex(op.ForwardSQL)
 			require.Equal(t, "products", table)
-			require.Equal(t, "idx_brand_country_union", indexName)
+			require.Equal(t, "idx_brand_nation_union", indexName)
 		}
 
-		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `supplier_code` varchar(100)"))
+		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `source_code` varchar(100)"))
 		must.Full(requireOperation(t, migrateOps, "ALTER TABLE `products` ADD `batch_no` varchar(100)"))
 		{
-			op := requireOperation(t, migrateOps, "CREATE UNIQUE INDEX `ux_supplier_batch` ON `products`(`supplier_code`,`batch_no`)")
+			op := requireOperation(t, migrateOps, "CREATE UNIQUE INDEX `ux_source_batch` ON `products`(`source_code`,`batch_no`)")
 			indexName, table := extractIndexAndTableFromCreateIndex(op.ForwardSQL)
 			require.Equal(t, "products", table)
-			require.Equal(t, "ux_supplier_batch", indexName)
+			require.Equal(t, "ux_source_batch", indexName)
 		}
 
 		showDebugScripts(t, migrateOps)
@@ -215,14 +220,14 @@ func (p *ProductV2) TableName() string {
 }
 
 type ProductV3 struct {
-	ID           uint    `gorm:"primaryKey"`
-	Name         string  `gorm:"size:255"`
-	Price        float64 `gorm:"type:float64"`
-	SKU          string  `gorm:"type:varchar(50);uniqueIndex"`
-	Brand        string  `gorm:"type:varchar(100);index:idx_brand_country_union"` // 普通复合索引
-	Country      string  `gorm:"type:varchar(100);index:idx_brand_country_union"` // 普通复合索引
-	SupplierCode string  `gorm:"type:varchar(100);uniqueIndex:ux_supplier_batch"` // 唯一复合索引
-	BatchNo      string  `gorm:"type:varchar(100);uniqueIndex:ux_supplier_batch"` // 唯一复合索引
+	ID         uint    `gorm:"primaryKey"`
+	Name       string  `gorm:"size:255"`
+	Price      float64 `gorm:"type:float64"`
+	SKU        string  `gorm:"type:varchar(50);uniqueIndex"`
+	Brand      string  `gorm:"type:varchar(100);index:idx_brand_nation_union"` // 普通复合索引
+	Nation     string  `gorm:"type:varchar(100);index:idx_brand_nation_union"` // 普通复合索引
+	SourceCode string  `gorm:"type:varchar(100);uniqueIndex:ux_source_batch"`  // 唯一复合索引
+	BatchNo    string  `gorm:"type:varchar(100);uniqueIndex:ux_source_batch"`  // 唯一复合索引
 }
 
 func (p *ProductV3) TableName() string {

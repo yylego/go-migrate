@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// Student is a simple GORM model used to drive schema diff detection
+// Student is a GORM struct used to drive schema diff detection
 //
 // Student 是用于驱动结构差异检测的简单 GORM 模型
 type Student struct {
@@ -52,7 +52,7 @@ type Student struct {
 func (*Student) TableName() string { return "users" }
 
 // TestShowStatus_NoiseDemo runs the status command end-to-end against an in-memory SQLite database
-// The test prints raw output so any noise from the call chain becomes visible
+// The test prints raw output to expose noise from nested functions
 //
 // TestShowStatus_NoiseDemo 针对内存 SQLite 数据库端到端运行 status 命令
 // 测试打印原始输出，使调用链中的任何噪音都能被看到
@@ -79,13 +79,13 @@ func TestShowStatus_NoiseDemo(t *testing.T) {
 			return db
 		},
 		func(db *gorm.DB) *migrate.Migrate {
-			sqlDB := rese.P1(db.DB())
-			driver := rese.V1(sqlite3.WithInstance(sqlDB, &sqlite3.Config{}))
+			conn := rese.P1(db.DB())
+			migrationDB := rese.V1(sqlite3.WithInstance(conn, &sqlite3.Config{}))
 			return rese.P1(newmigrate.NewWithScriptsAndDatabase(
 				&newmigrate.ScriptsAndDatabaseParam{
 					ScriptsInRoot:    scriptsPath,
 					DatabaseName:     "sqlite3",
-					DatabaseInstance: driver,
+					DatabaseInstance: migrationDB,
 				},
 			))
 		},

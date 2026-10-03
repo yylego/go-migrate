@@ -15,7 +15,7 @@ import (
 	"github.com/yylego/erero"
 	"github.com/yylego/go-migrate/checkmigration"
 	"github.com/yylego/go-migrate/migrationparam"
-	"github.com/yylego/rese"
+	"github.com/yylego/must"
 	"github.com/yylego/tint"
 	"gorm.io/gorm"
 )
@@ -28,7 +28,7 @@ import (
 type Config struct {
 	Param       *migrationparam.MigrationParam // Migration connection // 迁移连接
 	ScriptsPath string                         // Path to migration scripts DIR // 迁移脚本目录路径
-	Objects     []any                          // GORM model objects used in schema comparison // 用于结构比较的 GORM 模型对象
+	Objects     []any                          // GORM objects used in schema comparisons // 用于结构比较的 GORM 模型对象
 }
 
 // Status represents the current migration status
@@ -38,7 +38,7 @@ type Config struct {
 // 包含理解迁移状态所需的相关信息
 type Status struct {
 	DatabaseVersion     uint     // Current database version // 当前数据库版本
-	IsDirtyFlag         bool     // Database dirty state flag // 数据库脏状态标志
+	IsIncomplete        bool     // Incomplete migration state flag // 数据库迁移未完成状态标志
 	HasMigrated         bool     // Migration applied flag // 迁移已应用标志
 	LatestScriptVersion uint     // Latest version in scripts DIR // 脚本目录中的最新版本
 	ScriptCount         int      // Count of migration scripts // 迁移脚本数量
@@ -57,7 +57,7 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 
 	// Get database version
 	// 获取数据库版本
-	version, dirtyFlag, err := migration.Version()
+	version, incomplete, err := migration.Version()
 	if err != nil {
 		if errors.Is(err, migrate.ErrNilVersion) {
 			status.HasMigrated = false
@@ -68,7 +68,7 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 	} else {
 		status.HasMigrated = true
 		status.DatabaseVersion = version
-		status.IsDirtyFlag = dirtyFlag
+		status.IsIncomplete = incomplete
 	}
 
 	// Scan scripts DIR and extract versions
@@ -95,7 +95,10 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 	// Check schema differences when objects are provided
 	// 当提供对象时检查结构差异
 	if len(objects) > 0 {
-		migrateOps := checkmigration.GetMigrateOps(db, objects)
+		migrateOps, err := checkmigration.GetMigrateOps(db, objects)
+		if err != nil {
+			return nil, erero.Wro(err)
+		}
 		status.SchemaDiffSQLs = migrateOps.GetForwardSQLs()
 		status.SchemaDiffCount = len(status.SchemaDiffSQLs)
 	}
@@ -150,7 +153,7 @@ func ShowStatus(status *Status) {
 	// Database version
 	// 数据库版本
 	if status.HasMigrated {
-		if status.IsDirtyFlag {
+		if status.IsIncomplete {
 			tint.RED.ShowMessage(fmt.Sprintf("Database Version: %d (DIRTY)", status.DatabaseVersion))
 		} else {
 			tint.GREEN.ShowMessage(fmt.Sprintf("Database Version: %d", status.DatabaseVersion))
@@ -181,8 +184,8 @@ func ShowStatus(status *Status) {
 	if status.SchemaDiffCount > 0 {
 		tint.YELLOW.ShowMessage(fmt.Sprintf("Schema Differences: %d", status.SchemaDiffCount))
 		fmt.Println("  (Database has changes not yet in migration scripts)")
-		for i, sql := range status.SchemaDiffSQLs {
-			fmt.Println("->", i+1, "->", sql)
+		for i, statement := range status.SchemaDiffSQLs {
+			fmt.Println("->", i+1, "->", statement)
 		}
 	} else if status.SchemaDiffCount == 0 && len(status.SchemaDiffSQLs) == 0 {
 		tint.GREEN.ShowMessage("Schema Differences: 0 (Models match database)")
@@ -204,7 +207,8 @@ func NewStatusCmd(cfg *Config) *cobra.Command {
 
 			db, cleanup2 := cfg.Param.GetDB()
 			defer cleanup2()
-			status := rese.P1(GetStatus(db, migration, cfg.ScriptsPath, cfg.Objects))
+			status, err := GetStatus(db, migration, cfg.ScriptsPath, cfg.Objects)
+			must.Done(err)
 			ShowStatus(status)
 		},
 	}

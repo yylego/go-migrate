@@ -1,9 +1,13 @@
+<!-- TEMPLATE (ZH) BEGIN: BADGES -->
+
 [![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/yylego/go-migrate/release.yml?branch=main&label=BUILD)](https://github.com/yylego/go-migrate/actions/workflows/release.yml?query=branch%3Amain)
 [![GoDoc](https://pkg.go.dev/badge/github.com/yylego/go-migrate)](https://pkg.go.dev/github.com/yylego/go-migrate)
 [![Coverage Status](https://img.shields.io/coveralls/github/yylego/go-migrate/main.svg)](https://coveralls.io/github/yylego/go-migrate?branch=main)
-[![Supported Go Versions](https://img.shields.io/badge/Go-1.25+-lightgrey.svg)](https://go.dev/)
+[![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
+
+<!-- TEMPLATE (ZH) CLOSE: BADGES -->
 
 # go-migrate
 
@@ -23,7 +27,7 @@
 
 [ENGLISH README](README.md)
 
-<!-- TEMPLATE (ZH) END: LANGUAGE NAVIGATION -->
+<!-- TEMPLATE (ZH) CLOSE: LANGUAGE NAVIGATION -->
 
 ## 核心特性
 
@@ -39,8 +43,19 @@
 | `checkmigration` | 对比 GORM 模型与数据库，捕获 SQL 差异 |
 | `newmigrate`     | 创建 golang-migrate 实例              |
 | `migrationparam` | 迁移连接管理和调试模式控制            |
-| `cobramigration` | Cobra CLI 命令 (inc/dec/all)          |
+| `cobramigration` | Cobra CLI 命令 (inc/dec/batch)        |
 | `migrationstate` | 检查迁移状态                          |
+
+## 结构探测的错误处理
+
+`checkmigration.CheckMigrate(db, objects)` 返回 `([]string, error)`，`GetMigrateOps` 返回 `(MigrationOps, error)`。探测失败不返回不完整结果，由调用方处理错误。升级原先的单返回值调用时，需要接收新增的 `error`；需要失败即 panic 的调用方可显式使用 `must.Done(err)`：
+
+```go
+sqls, err := checkmigration.CheckMigrate(db, objects)
+must.Done(err)
+```
+
+这些接口通过 GORM DryRun 捕获 SQL，仍会读取数据库结构。PostgreSQL 的列信息查询使用独立的非 DryRun 会话，DDL 继续预演，不改变调用方配置。查询失败会返回错误，不会被当成“表不存在”。探测范围取决于 GORM AutoMigrate，不能代替完整的 schema diff，探测失败也不代表结构一致。
 
 ## 安装
 
@@ -53,7 +68,7 @@ go get github.com/yylego/go-migrate
 ### 1. 定义 GORM 模型
 
 ```go
-type User struct {
+type Account struct {
     ID   uint   `gorm:"primarykey"`
     Name string `gorm:"size:100"`
     Age  int
@@ -87,18 +102,18 @@ func main() {
             return setupDatabase() // 你的 GORM 配置
         },
         func(db *gorm.DB) *migrate.Migrate {
-            sqlDB := rese.P1(db.DB())
-            driver := rese.V1(mysqlmigrate.WithInstance(sqlDB, &mysqlmigrate.Config{}))
+            conn := rese.P1(db.DB())
+            migrationDB := rese.V1(mysqlmigrate.WithInstance(conn, &mysqlmigrate.Config{}))
             return rese.P1(newmigrate.NewWithScriptsAndDatabase(&newmigrate.ScriptsAndDatabaseParam{
                 ScriptsInRoot:    scriptsPath,
                 DatabaseName:     "mysql",
-                DatabaseInstance: driver,
+                DatabaseInstance: migrationDB,
             }))
         },
     )
 
     objects := []any{
-        &User{},
+        &Account{},
         &Product{},
         &Cart{},
     }
@@ -126,7 +141,7 @@ go run main.go status
 
 # 步骤 3: 执行迁移
 go run main.go migrate inc    # 单步执行
-go run main.go migrate all    # 执行所有待处理
+go run main.go migrate batch  # 执行所有待处理
 ```
 
 ## 由 AI 驱动的脚本编写
@@ -143,13 +158,13 @@ go run main.go migrate all    # 执行所有待处理
 
 ## CLI 命令清单
 
-| 命令          | 描述                                 |
-| ------------- | ------------------------------------ |
-| `status`      | 显示数据库版本、待处理迁移、结构差异 |
-| `migrate`     | 显示当前迁移版本                     |
-| `migrate inc` | 执行下一次迁移                       |
-| `migrate dec` | 回滚一次迁移                         |
-| `migrate all` | 执行所有待处理迁移                   |
+| 命令            | 描述                                 |
+| --------------- | ------------------------------------ |
+| `status`        | 显示数据库版本、待处理迁移、结构差异 |
+| `migrate`       | 显示当前迁移版本                     |
+| `migrate inc`   | 执行下一次迁移                       |
+| `migrate dec`   | 回滚一次迁移                         |
+| `migrate batch` | 执行所有待处理迁移                   |
 
 ## 数据库支持
 
@@ -158,15 +173,15 @@ go run main.go migrate all    # 执行所有待处理
 ```go
 // MySQL
 import mysqlmigrate "github.com/golang-migrate/migrate/v4/database/mysql"
-driver := rese.V1(mysqlmigrate.WithInstance(sqlDB, &mysqlmigrate.Config{}))
+migrationDB := rese.V1(mysqlmigrate.WithInstance(conn, &mysqlmigrate.Config{}))
 
 // PostgreSQL
 import postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
-driver := rese.V1(postgresmigrate.WithInstance(sqlDB, &postgresmigrate.Config{}))
+migrationDB := rese.V1(postgresmigrate.WithInstance(conn, &postgresmigrate.Config{}))
 
 // SQLite
 import sqlite3migrate "github.com/golang-migrate/migrate/v4/database/sqlite3"
-driver := rese.V1(sqlite3migrate.WithInstance(sqlDB, &sqlite3migrate.Config{}))
+migrationDB := rese.V1(sqlite3migrate.WithInstance(conn, &sqlite3migrate.Config{}))
 ```
 
 ## 高级配置
@@ -195,9 +210,9 @@ var migrationsFS embed.FS
 
 migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
     MigrationsFS:     &migrationsFS,
-    EmbedDirName:     "migrations",
+    EmbedPath:        "migrations",
     DatabaseName:     "mysql",
-    DatabaseInstance: driver,
+    DatabaseInstance: migrationDB,
 }))
 ```
 
@@ -273,10 +288,14 @@ MIT 许可证 - 详见 [LICENSE](LICENSE)。
 
 **祝你用这个包编程愉快！** 🎉🎉🎉
 
-<!-- TEMPLATE (ZH) END: STANDARD PROJECT FOOTER -->
+<!-- TEMPLATE (ZH) CLOSE: STANDARD PROJECT FOOTER -->
 
 ---
+
+<!-- TEMPLATE (ZH) BEGIN: GITHUB STARS -->
 
 ## GitHub 标星点赞
 
 [![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
+
+<!-- TEMPLATE (ZH) CLOSE: GITHUB STARS -->

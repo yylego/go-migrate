@@ -43,20 +43,20 @@ func main() {
 	}
 	scriptsInRoot := runpath.PARENT.Join("scripts")
 
-	// Migration connection with lazy initialization and unified resource management
+	// Migration connection with on-demand initialization and unified resource management
 	// 迁移连接，支持延迟初始化和统一资源管理
 	param := migrationparam.NewMigrationParam(
 		func() *gorm.DB {
 			return newGormDB(cfg)
 		},
 		func(db *gorm.DB) *migrate.Migrate {
-			sqlDB := rese.P1(db.DB())
-			migrationDriver := rese.V1(postgresmigrate.WithInstance(sqlDB, &postgresmigrate.Config{}))
+			conn := rese.P1(db.DB())
+			migrationDB := rese.V1(postgresmigrate.WithInstance(conn, &postgresmigrate.Config{}))
 			return rese.P1(newmigrate.NewWithScriptsAndDatabase(
 				&newmigrate.ScriptsAndDatabaseParam{
 					ScriptsInRoot:    scriptsInRoot,
 					DatabaseName:     "postgres",
-					DatabaseInstance: migrationDriver,
+					DatabaseInstance: migrationDB,
 				},
 			))
 		},
@@ -65,7 +65,7 @@ func main() {
 	// Random version objects to simulate different development stages
 	// 随机版本对象，模拟不同开发阶段的迁移场景
 	objects := []any{
-		randomSample(&models.UserV1{}, &models.UserV2{}, &models.UserV3{}),
+		randomSample(&models.AccountV1{}, &models.AccountV2{}, &models.AccountV3{}),
 		randomSample(&models.InfoV1{}, &models.InfoV2{}, &models.InfoV3{}),
 	}
 
@@ -102,12 +102,12 @@ func newGormDB(cfg *PostgresConfig) *gorm.DB {
 			TranslateError: true,
 		},
 	))
-	sqlDB := rese.P1(db.DB())
-	sqlDB.SetConnMaxIdleTime(60 * time.Second)
-	sqlDB.SetMaxIdleConns(500)
+	conn := rese.P1(db.DB())
+	conn.SetConnMaxIdleTime(60 * time.Second)
+	conn.SetMaxIdleConns(500)
 
 	zaplog.SUG.Debugln("正在检查数据库连接")
-	must.Done(sqlDB.Ping())
+	must.Done(conn.Ping())
 	zaplog.SUG.Debugln("已经检查数据库连接")
 	return db
 }

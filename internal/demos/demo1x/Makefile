@@ -2,7 +2,7 @@ STATUS:
 	go run main.go status
 
 MIGRATE-ALL:
-	go run main.go migrate all
+	go run main.go migrate batch
 
 MIGRATE-INC:
 	go run main.go migrate inc

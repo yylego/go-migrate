@@ -1,9 +1,13 @@
+<!-- TEMPLATE (EN) BEGIN: BADGES -->
+
 [![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/yylego/go-migrate/release.yml?branch=main&label=BUILD)](https://github.com/yylego/go-migrate/actions/workflows/release.yml?query=branch%3Amain)
 [![GoDoc](https://pkg.go.dev/badge/github.com/yylego/go-migrate)](https://pkg.go.dev/github.com/yylego/go-migrate)
 [![Coverage Status](https://img.shields.io/coveralls/github/yylego/go-migrate/main.svg)](https://coveralls.io/github/yylego/go-migrate?branch=main)
-[![Supported Go Versions](https://img.shields.io/badge/Go-1.25+-lightgrey.svg)](https://go.dev/)
+[![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
+
+<!-- TEMPLATE (EN) CLOSE: BADGES -->
 
 # go-migrate
 
@@ -23,7 +27,7 @@ Database migration toolkit with GORM schema analysis, migration execution and st
 
 [中文说明](README.zh.md)
 
-<!-- TEMPLATE (EN) END: LANGUAGE NAVIGATION -->
+<!-- TEMPLATE (EN) CLOSE: LANGUAGE NAVIGATION -->
 
 ## Features
 
@@ -39,8 +43,19 @@ Database migration toolkit with GORM schema analysis, migration execution and st
 | `checkmigration` | Compare GORM models with database, capture SQL differences |
 | `newmigrate`     | Create golang-migrate instance                             |
 | `migrationparam` | Migration connection management and debug mode settings    |
-| `cobramigration` | Cobra CLI commands (inc/dec/all)                           |
+| `cobramigration` | Cobra CLI commands (inc/dec/batch)                         |
 | `migrationstate` | Check migration status                                     |
+
+## Schema probe errors
+
+`checkmigration.CheckMigrate(db, objects)` returns `([]string, error)`; `GetMigrateOps` returns `(MigrationOps, error)`. Failed probes return no incomplete results. Code using these APIs must handle the added `error` result. To panic on failure, use `must.Done(err)`:
+
+```go
+sqls, err := checkmigration.CheckMigrate(db, objects)
+must.Done(err)
+```
+
+These APIs capture SQL through GORM DryRun and read schema metadata. PostgreSQL column metadata uses a separate session with DryRun off; DDL stays in DryRun and the supplied configuration remains intact. Failed reads produce errors instead of missing-table results. Scope follows GORM AutoMigrate, not a complete schema diff; a failed probe does not mean the schema matches.
 
 ## Installation
 
@@ -53,7 +68,7 @@ go get github.com/yylego/go-migrate
 ### 1. Define GORM Models
 
 ```go
-type User struct {
+type Account struct {
     ID   uint   `gorm:"primarykey"`
     Name string `gorm:"size:100"`
     Age  int
@@ -87,18 +102,18 @@ func main() {
             return setupDatabase() // GORM setup goes here
         },
         func(db *gorm.DB) *migrate.Migrate {
-            sqlDB := rese.P1(db.DB())
-            driver := rese.V1(mysqlmigrate.WithInstance(sqlDB, &mysqlmigrate.Config{}))
+            conn := rese.P1(db.DB())
+            migrationDB := rese.V1(mysqlmigrate.WithInstance(conn, &mysqlmigrate.Config{}))
             return rese.P1(newmigrate.NewWithScriptsAndDatabase(&newmigrate.ScriptsAndDatabaseParam{
                 ScriptsInRoot:    scriptsPath,
                 DatabaseName:     "mysql",
-                DatabaseInstance: driver,
+                DatabaseInstance: migrationDB,
             }))
         },
     )
 
     objects := []any{
-        &User{},
+        &Account{},
         &Product{},
         &Cart{},
     }
@@ -126,7 +141,7 @@ go run main.go status
 
 # Step 3: Execute migration
 go run main.go migrate inc    # One step
-go run main.go migrate all    # batch run
+go run main.go migrate batch  # batch run
 ```
 
 ## AI-Driven Script Authoring
@@ -143,13 +158,13 @@ The updated architecture focuses on what AI cannot replace: **schema validation,
 
 ## CLI Command List
 
-| Command       | Description                                            |
-| ------------- | ------------------------------------------------------ |
-| `status`      | Show database version, pending migrations, schema diff |
-| `migrate`     | Show current migration version                         |
-| `migrate inc` | Execute next migration                                 |
-| `migrate dec` | Rollback one migration                                 |
-| `migrate all` | Execute pending migrations at once                     |
+| Command         | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `status`        | Show database version, pending migrations, schema diff |
+| `migrate`       | Show current migration version                         |
+| `migrate inc`   | Execute next migration                                 |
+| `migrate dec`   | Rollback one migration                                 |
+| `migrate batch` | Execute pending migrations at once                     |
 
 ## Database Support
 
@@ -158,15 +173,15 @@ Works with MySQL, PostgreSQL, SQLite through golang-migrate drivers:
 ```go
 // MySQL
 import mysqlmigrate "github.com/golang-migrate/migrate/v4/database/mysql"
-driver := rese.V1(mysqlmigrate.WithInstance(sqlDB, &mysqlmigrate.Config{}))
+migrationDB := rese.V1(mysqlmigrate.WithInstance(conn, &mysqlmigrate.Config{}))
 
 // PostgreSQL
 import postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
-driver := rese.V1(postgresmigrate.WithInstance(sqlDB, &postgresmigrate.Config{}))
+migrationDB := rese.V1(postgresmigrate.WithInstance(conn, &postgresmigrate.Config{}))
 
 // SQLite
 import sqlite3migrate "github.com/golang-migrate/migrate/v4/database/sqlite3"
-driver := rese.V1(sqlite3migrate.WithInstance(sqlDB, &sqlite3migrate.Config{}))
+migrationDB := rese.V1(sqlite3migrate.WithInstance(conn, &sqlite3migrate.Config{}))
 ```
 
 ## Advanced Configuration
@@ -195,9 +210,9 @@ var migrationsFS embed.FS
 
 migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
     MigrationsFS:     &migrationsFS,
-    EmbedDirName:     "migrations",
+    EmbedPath:        "migrations",
     DatabaseName:     "mysql",
-    DatabaseInstance: driver,
+    DatabaseInstance: migrationDB,
 }))
 ```
 
@@ -273,10 +288,14 @@ Welcome to contribute to this project via submitting merge requests and reportin
 
 **Have Fun Coding with this package!** 🎉🎉🎉
 
-<!-- TEMPLATE (EN) END: STANDARD PROJECT FOOTER -->
+<!-- TEMPLATE (EN) CLOSE: STANDARD PROJECT FOOTER -->
 
 ---
+
+<!-- TEMPLATE (EN) BEGIN: GITHUB STARS -->
 
 ## GitHub Stars
 
 [![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
+
+<!-- TEMPLATE (EN) CLOSE: GITHUB STARS -->

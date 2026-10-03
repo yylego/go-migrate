@@ -24,7 +24,7 @@ type MigrationParam struct {
 	migration    *migrate.Migrate
 }
 
-// NewMigrationParam creates param with database and migration factory functions
+// NewMigrationParam creates param with database and migration construction functions
 // Uses delayed initialization to create connections when needed
 //
 // NewMigrationParam 使用数据库和迁移工厂函数创建参数
@@ -62,13 +62,12 @@ func (p *MigrationParam) GetMigration() (*migrate.Migrate, func()) {
 	return p.migration, p.cleanup
 }
 
-// cleanup releases resources after migration operations complete
-// Closes migration instance and database connection properly
-// Logs errors but continues cleanup to ensure resources are released
+// cleanup releases resources once migration operations complete
+// Closes the migration instance and database connection; failures cause panic
 //
 // cleanup 在迁移操作完成后释放资源
 // 正确关闭迁移实例和数据库连接
-// 记录错误但继续清理以确保资源被释放
+// 关闭失败时抛出异常
 func (p *MigrationParam) cleanup() {
 	// Close migration instance
 	// 关闭迁移实例

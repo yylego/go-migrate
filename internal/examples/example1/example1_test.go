@@ -21,9 +21,9 @@ import (
 func TestNewWithScriptsAndDBSource(t *testing.T) {
 	migration := rese.P1(newmigrate.NewWithScriptsAndDBSource[*sqlite3.Sqlite](&newmigrate.ScriptsAndDBSourceParam{
 		ScriptsInRoot: runpath.PARENT.Join("scripts"),
-		ConnectSource: "sqlite3://file::memory:?cache=private",
+		ConnectSource: "sqlite3://file:/" + uuid.NewString() + "?mode=memory&cache=private",
 	}))
-	migration.Log = &tests.LoggerDebug{}
+	migration.Log = &tests.DebugLog{}
 	defer func() {
 		err1, err2 := migration.Close()
 		must.Done(err1)
@@ -53,7 +53,7 @@ func TestNewWithScriptsAndDatabase(t *testing.T) {
 			DatabaseInstance: rese.V1(sqlite3.WithInstance(rese.P1(db.DB()), &sqlite3.Config{})),
 		},
 	))
-	migration.Log = &tests.LoggerDebug{}
+	migration.Log = &tests.DebugLog{}
 	defer func() {
 		err1, err2 := migration.Close()
 		must.Done(err1)
@@ -107,12 +107,12 @@ func TestNewWithEmbedFsAndDatabase(t *testing.T) {
 	migration := rese.P1(newmigrate.NewWithEmbedFsAndDatabase(
 		&newmigrate.EmbedFsAndDatabaseParam{
 			MigrationsFS:     &migrationsFS,
-			EmbedDirName:     "scripts",
+			EmbedPath:        "scripts",
 			DatabaseName:     "sqlite3",
 			DatabaseInstance: rese.V1(sqlite3.WithInstance(rese.P1(db.DB()), &sqlite3.Config{})),
 		},
 	))
-	migration.Log = &tests.LoggerDebug{}
+	migration.Log = &tests.DebugLog{}
 	defer func() {
 		err1, err2 := migration.Close()
 		must.Done(err1)

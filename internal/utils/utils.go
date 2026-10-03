@@ -1,6 +1,6 @@
-// Package utils: Internal utility functions for migration operations and error handling
-// Provides common helper functions for UUID generation and migration result processing
-// Includes specialized error handling for golang-migrate specific error cases
+// Package utils provides migration support and handles errors
+// Includes UUID generation and migration result processing
+// Handles golang-migrate specific errors
 //
 // utils: 用于迁移操作和错误处理的内部工具函数
 // 提供 UUID 生成和迁移结果处理的通用助手函数
@@ -18,9 +18,9 @@ import (
 	"github.com/yylego/zaplog"
 )
 
-// NewUUID32s generates 32-character hexadecimal UUID string for unique identification
+// NewUUID32s generates a UUID string with 32 hex digits
 // Creates standard UUID and converts to lowercase hex representation
-// Used for generating unique identifiers in migration contexts
+// Used to generate unique IDs in migration contexts
 //
 // NewUUID32s 生成 32 字符十六进制 UUID 字符串用于唯一标识
 // 创建标准 UUID 并转换为小写十六进制表示
@@ -30,9 +30,9 @@ func NewUUID32s() string {
 	return hex.EncodeToString(u[:])
 }
 
-// WhistleCause processes migration errors with appropriate logging and panic behavior
-// Handles common golang-migrate error cases with informative messages
-// Uses color-coded output for different error types and success states
+// WhistleCause processes migration errors with logs and panic on unexpected failures
+// Handles common golang-migrate errors with informative messages
+// Uses distinct colors to indicate failures and success
 //
 // WhistleCause 处理迁移错误，采用适当的日志和异常行为
 // 处理常见的 golang-migrate 错误情况，并提供信息性消息
