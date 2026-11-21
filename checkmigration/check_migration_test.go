@@ -190,7 +190,7 @@ func TestCheckMigrate_Product(t *testing.T) {
 //
 // showDebugScripts 输出带颜色格式化的正向脚本
 func showDebugScripts(t *testing.T, migrateOps checkmigration.MigrationOps) {
-	forwardScript := migrateOps.GetForwardScript()
+	forwardScript := migrateOps.ForwardScript()
 	zaplog.ZAPS.Skip(1).SUG.Debug("forward:", "\n", tint.AQUA.Sprint(forwardScript))
 }
 

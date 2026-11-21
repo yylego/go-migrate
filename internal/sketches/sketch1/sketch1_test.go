@@ -6,7 +6,6 @@ import (
 
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/yylego/go-migrate/internal/tests"
 	"github.com/yylego/rese"
@@ -32,10 +31,10 @@ func TestFileOpen(t *testing.T) {
 
 		nextVersion, err := sourceInstance.Next(version)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return
-			}
-			t.FailNow()
+			// Past the last version the source gives os.ErrNotExist
+			// 走过最后一个版本时，脚本源返回 os.ErrNotExist
+			require.ErrorIs(t, err, os.ErrNotExist)
+			return
 		}
 		version = nextVersion
 	}

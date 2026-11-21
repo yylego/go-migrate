@@ -36,30 +36,35 @@ func NewMigrationParam(newDB func() *gorm.DB, newMigration func(db *gorm.DB) *mi
 	}
 }
 
-// GetDB returns database connection with cleanup function
+// DB returns database connection with cleanup function
 // Creates connection on first access using delayed initialization
 //
-// GetDB 返回数据库连接和清理函数
+// DB 返回数据库连接和清理函数
 // 使用延迟初始化在首次访问时创建连接
-func (p *MigrationParam) GetDB() (*gorm.DB, func()) {
+func (p *MigrationParam) DB() (*gorm.DB, func()) {
+	return p.sharedDB(), p.cleanup
+}
+
+// Migration returns migration instance with cleanup function
+// Creates migration on first access using delayed initialization; it shares the connection of DB
+//
+// Migration 返回迁移实例和清理函数
+// 使用延迟初始化在首次访问时创建迁移，和 DB 共用同一个连接
+func (p *MigrationParam) Migration() (*migrate.Migrate, func()) {
+	if p.migration == nil {
+		p.migration = p.newMigration(p.sharedDB())
+	}
+	return p.migration, p.cleanup
+}
+
+// sharedDB builds the connection on first access; cleanup closes it along with the migration
+//
+// sharedDB 首次访问时创建连接；cleanup 会把它和迁移实例一起关闭
+func (p *MigrationParam) sharedDB() *gorm.DB {
 	if p.db == nil {
 		p.db = p.newDB()
 	}
-	return p.db, p.cleanup
-}
-
-// GetMigration returns migration instance with cleanup function
-// Creates migration on first access using delayed initialization
-//
-// GetMigration 返回迁移实例和清理函数
-// 使用延迟初始化在首次访问时创建迁移
-func (p *MigrationParam) GetMigration() (*migrate.Migrate, func()) {
-	if p.migration == nil {
-		db, cleanup := p.GetDB()
-		p.migration = p.newMigration(db)
-		_ = cleanup // Cleanup included in returned function // 结果里的 cleanup 包含这个的 cleanup
-	}
-	return p.migration, p.cleanup
+	return p.db
 }
 
 // cleanup releases resources once migration operations complete

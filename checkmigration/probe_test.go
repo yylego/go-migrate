@@ -32,7 +32,7 @@ func TestProbeErrors(t *testing.T) {
 // TestProbeModes preserves captured DDL, the source session, and the database.
 // TestProbeModes 核对两种模式的 DDL 相同，且不改变原会话或执行建表。
 func TestProbeModes(t *testing.T) {
-	debugMode := migrationparam.GetDebugMode()
+	debugMode := migrationparam.DebugMode()
 	t.Cleanup(func() { migrationparam.SetDebugMode(debugMode) })
 	db := caseDB.Session(&gorm.Session{})
 	dialect, log := db.Dialector, db.Logger
@@ -57,6 +57,38 @@ func TestProbeModes(t *testing.T) {
 type probeOutputRecord struct {
 	ID uint `gorm:"primaryKey"`
 }
+
+// TestProbeColumnType changes a column type on SQLite: the SQLite dialect panics in DryRun, and the probe returns it as an error
+// TestProbeColumnType 在 SQLite 上改列类型：SQLite 方言在 DryRun 下会 panic，探测把它接成错误返回
+func TestProbeColumnType(t *testing.T) {
+	db := caseDB
+	t.Cleanup(func() {
+		require.NoError(t, db.Migrator().DropTable(&probeGradeV1{}))
+	})
+	require.NoError(t, db.AutoMigrate(&probeGradeV1{}))
+
+	var sqls []string
+	var err error
+	require.NotPanics(t, func() {
+		sqls, err = checkmigration.CheckMigrate(db, []any{&probeGradeV2{}})
+	})
+	require.Error(t, err)
+	require.Nil(t, sqls)
+}
+
+type probeGradeV1 struct {
+	ID    uint `gorm:"primaryKey"`
+	Grade string
+}
+
+func (*probeGradeV1) TableName() string { return "probe_grades" }
+
+type probeGradeV2 struct {
+	ID    uint `gorm:"primaryKey"`
+	Grade int
+}
+
+func (*probeGradeV2) TableName() string { return "probe_grades" }
 
 type failedProbeDialect struct {
 	gorm.Dialector

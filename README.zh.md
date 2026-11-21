@@ -6,6 +6,7 @@
 [![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
+
 <!-- TEMPLATE (ZH) CLOSE: BADGES -->
 
 # go-migrate
@@ -37,17 +38,17 @@
 
 ## 核心包
 
-| 包名             | 用途                                  |
-| ---------------- | ------------------------------------- |
-| `checkmigration` | 对比 GORM 模型与数据库，捕获 SQL 差异 |
-| `newmigrate`     | 创建 golang-migrate 实例              |
-| `migrationparam` | 迁移连接管理和调试模式控制            |
-| `cobramigration` | Cobra CLI 命令 (inc/dec/batch)        |
-| `migrationstate` | 检查迁移状态                          |
+| 包名             | 用途                                                  |
+| ---------------- | ----------------------------------------------------- |
+| `checkmigration` | 对比 GORM 模型与数据库，捕获 SQL 差异                 |
+| `newmigrate`     | golang-migrate 构造函数的薄封装，直接调官方函数也一样 |
+| `migrationparam` | 迁移连接管理和调试模式控制                            |
+| `cobramigration` | Cobra CLI 命令 (inc/dec/batch)                        |
+| `migrationstate` | 检查迁移状态                                          |
 
 ## 结构探测的错误处理
 
-`checkmigration.CheckMigrate(db, objects)` 返回 `([]string, error)`，`GetMigrateOps` 返回 `(MigrationOps, error)`。探测失败不返回不完整结果，由调用方处理错误。升级原先的单返回值调用时，需要接收新增的 `error`；需要失败即 panic 的调用方可显式使用 `must.Done(err)`：
+`checkmigration.CheckMigrate(db, objects)` 返回 `([]string, error)`，`GetMigrateOps` 返回 `(MigrationOps, error)`。探测失败不返回不完整结果，由调用方处理错误；需要失败即 panic 的调用方可显式使用 `must.Done(err)`：
 
 ```go
 sqls, err := checkmigration.CheckMigrate(db, objects)
@@ -55,6 +56,14 @@ must.Done(err)
 ```
 
 这些接口通过 GORM DryRun 捕获 SQL，仍会读取数据库结构。PostgreSQL 的列信息查询使用独立的非 DryRun 会话，DDL 继续预演，不改变调用方配置。查询失败会返回错误，不会被当成“表不存在”。探测范围取决于 GORM AutoMigrate，不能代替完整的 schema diff，探测失败也不代表结构一致。
+
+在 PostgreSQL 上：
+
+- 列注释有变化时结果里带 `COMMENT ON COLUMN`。非主键列还会多出一条类型没变的 `ALTER TABLE ... ALTER COLUMN ... TYPE`，这条是 GORM 自己带出来的，所以改一处注释会看到两条语句。
+- 列改成自增时带建序列的语句。
+- 列取消自增探测不出来：探测返回 `dry run mode unsupported` 错误，这种改动需要自己写迁移脚本。
+
+在 SQLite 上，改列类型探测不出来：SQLite 方言在 DryRun 下会 panic，探测把它接成错误返回。
 
 ## 安装
 
@@ -113,8 +122,6 @@ func main() {
 
     objects := []any{
         &Account{},
-        &Product{},
-        &Cart{},
     }
 
     rootCmd := &cobra.Command{Use: "app"}
@@ -143,17 +150,11 @@ go run main.go migrate inc    # 单步执行
 go run main.go migrate batch  # 执行所有待处理
 ```
 
-## 由 AI 驱动的脚本编写
+## 设计意图
 
-该项目早期版本包含内置的脚本生成（`newscripts`）和预览（`previewmigrate`）功能包，现已移除。具体改动原因：
+迁移脚本由人手写或交给 AI 助手写：AI 读 GORM 模型的变更就能写出 SQL，不需要连数据库，写出来的脚本风格也一致。
 
-- **AI 写脚本更准确**：Claude Code 等 AI 工具可以直接阅读 GORM 模型变更，准确生成迁移 SQL 语句。
-- **AI 总是绕过工具**：即使在文档中反复强调要走工具生成脚本，AI 阅读项目时一看到 migrations 目录和已有脚本样例，就会自行推断格式直接手写新脚本，绕过工具。手写结果反而稳定准确，而工具产物时好时坏；与其混用造成不一致，不如直接放弃脚本生成功能，只保留校验部分。
-- **脚本创建不依赖数据库**：原工具需要运行中的数据库，通过 GORM DryRun 模式捕获结构差异。AI 只需阅读代码即可生成脚本。
-- **预览功能有局限**：MySQL 不支持 DDL 事务回滚，导致预览功能在最常用的数据库上不可靠。
-- **出错有 AI 协助**：原先设计预览是为了避免迁移中途出错后需要人工逐步排查；如今出错后只需交给 AI，它能机智引导快速回滚到出错前的状态。考虑到迁移通常先在本地或测试环境演练、失败本就少见，加上 AI 的处理能力又足够强，预览这一环节就显得多余。
-
-当前架构聚焦于 AI 无法替代的能力：**结构验证、迁移执行和状态管理**。脚本编写交由 AI 或手动完成。
+go-migrate 负责写脚本覆盖不到的部分：**核对模型和数据库是否一致、执行迁移、报告迁移状态**。
 
 ## CLI 命令清单
 
@@ -164,6 +165,10 @@ go run main.go migrate batch  # 执行所有待处理
 | `migrate inc`   | 执行下一次迁移                       |
 | `migrate dec`   | 回滚一次迁移                         |
 | `migrate batch` | 执行所有待处理迁移                   |
+
+没有待执行脚本、上次迁移也已跑完时，`status` 才显示 "up to date"。上次迁移没有跑完（golang-migrate 称为 dirty）时，版本后面显示 `(DIRTY)`，`Status.IsUpToDate` 为 false。没有传模型时不比对结构，输出里写明 "not checked"。
+
+golang-migrate 报告找不到脚本（`os.ErrNotExist`）时，`migrate batch`、`migrate inc`、`migrate dec` 打印一条警告。它有两种来源：`inc` / `dec` 在这个方向上已经没有可走的步骤；脚本目录写错。
 
 ## 数据库支持
 
@@ -196,7 +201,7 @@ import "github.com/yylego/go-migrate/migrationparam"
 migrationparam.SetDebugMode(true)
 
 // 检查当前调试模式状态
-if migrationparam.GetDebugMode() {
+if migrationparam.DebugMode() {
     // 调试日志已启用
 }
 ```
@@ -207,13 +212,15 @@ if migrationparam.GetDebugMode() {
 //go:embed migrations
 var migrationsFS embed.FS
 
-migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
+migration := rese.P1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
     MigrationsFS:     &migrationsFS,
     EmbedPath:        "migrations",
     DatabaseName:     "mysql",
     DatabaseInstance: migrationDB,
 }))
 ```
+
+`MigrationsFS` 接受任意 `fs.FS`；用 `embed.FS` 时脚本随二进制一起打包。
 
 ## 示例
 
@@ -288,12 +295,3 @@ MIT 许可证 - 详见 [LICENSE](LICENSE)。
 **祝你用这个包编程愉快！** 🎉🎉🎉
 
 <!-- TEMPLATE (ZH) CLOSE: STANDARD PROJECT FOOTER -->
-
----
-
-<!-- TEMPLATE (ZH) BEGIN: GITHUB STARS -->
-
-## GitHub 标星点赞
-
-[![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
-<!-- TEMPLATE (ZH) CLOSE: GITHUB STARS -->

@@ -79,7 +79,7 @@ func main() {
 	must.Done(rootCmd.Execute())
 }
 
-func randomSample(objects ...interface{}) any {
+func randomSample(objects ...any) any {
 	must.Have(objects)
 	idx := rand.IntN(len(objects))
 	return objects[idx]

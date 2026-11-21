@@ -8,8 +8,8 @@ func SetDebugMode(enable bool) {
 	debugModeOpen = enable
 }
 
-// GetDebugMode returns the project-wide debug mode used in migration operations
-// GetDebugMode 获取项目级别的迁移操作调试模式
-func GetDebugMode() bool {
+// DebugMode returns the project-wide debug mode used in migration operations
+// DebugMode 返回项目级别的迁移操作调试模式
+func DebugMode() bool {
 	return debugModeOpen
 }

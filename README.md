@@ -6,6 +6,7 @@
 [![Supported Go Versions](https://img.shields.io/badge/Go-1.26%2B-lightgrey.svg)](https://go.dev/)
 [![GitHub Release](https://img.shields.io/github/release/yylego/go-migrate.svg)](https://github.com/yylego/go-migrate/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/yylego/go-migrate)](https://goreportcard.com/report/github.com/yylego/go-migrate)
+
 <!-- TEMPLATE (EN) CLOSE: BADGES -->
 
 # go-migrate
@@ -37,17 +38,17 @@ Database migration toolkit with GORM schema analysis, migration execution and st
 
 ## Core Packages
 
-| Package          | Purpose                                                    |
-| ---------------- | ---------------------------------------------------------- |
-| `checkmigration` | Compare GORM models with database, capture SQL differences |
-| `newmigrate`     | Create golang-migrate instance                             |
-| `migrationparam` | Migration connection management and debug mode settings    |
-| `cobramigration` | Cobra CLI commands (inc/dec/batch)                         |
-| `migrationstate` | Check migration status                                     |
+| Package          | Purpose                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `checkmigration` | Compare GORM models with database, capture SQL differences                              |
+| `newmigrate`     | Thin pass-through to the golang-migrate constructors; calling them as-is works the same |
+| `migrationparam` | Migration connection management and debug mode settings                                 |
+| `cobramigration` | Cobra CLI commands (inc/dec/batch)                                                      |
+| `migrationstate` | Check migration status                                                                  |
 
 ## Schema probe errors
 
-`checkmigration.CheckMigrate(db, objects)` returns `([]string, error)`; `GetMigrateOps` returns `(MigrationOps, error)`. Failed probes return no incomplete results. Code using these APIs must handle the added `error` result. To panic on failure, use `must.Done(err)`:
+`checkmigration.CheckMigrate(db, objects)` returns `([]string, error)`; `GetMigrateOps` returns `(MigrationOps, error)`. Failed probes return no incomplete results, and the code that calls them handles the `error`. To panic on failure, use `must.Done(err)`:
 
 ```go
 sqls, err := checkmigration.CheckMigrate(db, objects)
@@ -55,6 +56,14 @@ must.Done(err)
 ```
 
 These APIs capture SQL through GORM DryRun and read schema metadata. PostgreSQL column metadata uses a separate session with DryRun off; DDL stays in DryRun and the supplied configuration remains intact. Failed reads produce errors instead of missing-table results. Scope follows GORM AutoMigrate, not a complete schema diff; a failed probe does not mean the schema matches.
+
+On PostgreSQL:
+
+- A changed column comment gives `COMMENT ON COLUMN`. On a column outside the `PRIMARY KEY`, GORM itself adds an `ALTER TABLE ... ALTER COLUMN ... TYPE` statement with the unchanged type, so one changed comment shows up as two statements.
+- A column that turns auto-increment gives the sequence statements.
+- A column that stops being auto-increment cannot be probed: the probe returns a `dry run mode unsupported` error, so write the migration script without the probe.
+
+On SQLite, a changed column type cannot be probed: the SQLite dialect panics in DryRun, and the probe returns that as an error.
 
 ## Installation
 
@@ -113,8 +122,6 @@ func main() {
 
     objects := []any{
         &Account{},
-        &Product{},
-        &Cart{},
     }
 
     rootCmd := &cobra.Command{Use: "app"}
@@ -143,17 +150,11 @@ go run main.go migrate inc    # One step
 go run main.go migrate batch  # batch run
 ```
 
-## AI-Driven Script Authoring
+## Design Intent
 
-Previous versions included built-in script generation (`newscripts`) and migration preview (`previewmigrate`) packages. These have been removed:
+Migration scripts are hand-written, and an AI assistant can write them too: it reads the GORM struct changes and writes the SQL, with no database needed, and the scripts keep one consistent style.
 
-- **AI produces more accurate scripts**: AI assistants (e.g., Claude Code) can read GORM struct changes and produce precise migration SQL without a database connection.
-- **AI prefers hand-writing**: Even when docs emphasize using the package, AI assistants notice existing `migrations` files, then guess the pattern and hand-write new ones — bypassing the package. Hand-written results are consistent and accurate, while package output is hit-and-miss; mixed usage causes inconsistencies, so dropping the generation feature (keeping just validation) was the cleanest choice.
-- **No database needed to create scripts**: The old approach required a running database to capture schema differences via GORM DryRun mode. AI produces scripts just from reading code.
-- **Preview had limitations**: MySQL does not support DDL transaction rollback, making the preview feature unreliable on the most common database engine.
-- **AI assists with errors**: Preview existed to avoid stepping through fixes once a mid-migration failure occurs. Now when errors arise, AI can guide a swift rollback to the previous state. Since migrations often run on test environments first, since failures are uncommon, and since AI handles them fine, the preview step has become redundant.
-
-The updated architecture focuses on what AI cannot replace: **schema validation, migration execution, and status management**. Script authoring is delegated to AI / hand-written approaches.
+go-migrate does the parts that the scripts do not handle: **checking that the models match the database, running the migrations, and reporting the status**.
 
 ## CLI Command List
 
@@ -164,6 +165,10 @@ The updated architecture focuses on what AI cannot replace: **schema validation,
 | `migrate inc`   | Execute next migration                                 |
 | `migrate dec`   | Rollback one migration                                 |
 | `migrate batch` | Execute pending migrations at once                     |
+
+`status` says "up to date" when no script is pending and the last migration finished. When the last migration did not finish (golang-migrate calls this dirty), the version shows `(DIRTY)` and `Status.IsUpToDate` is false. With no models given, the schema is not compared, and the output says "not checked".
+
+`migrate batch`, `migrate inc` and `migrate dec` print a warning when golang-migrate reports a missing script (`os.ErrNotExist`). It comes from one of two cases: `inc` / `dec` have no step left in that direction; the scripts path is wrong.
 
 ## Database Support
 
@@ -196,7 +201,7 @@ import "github.com/yylego/go-migrate/migrationparam"
 migrationparam.SetDebugMode(true)
 
 // Check current debug mode status
-if migrationparam.GetDebugMode() {
+if migrationparam.DebugMode() {
     // Debug logging is enabled
 }
 ```
@@ -207,13 +212,15 @@ if migrationparam.GetDebugMode() {
 //go:embed migrations
 var migrationsFS embed.FS
 
-migration := rese.V1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
+migration := rese.P1(newmigrate.NewWithEmbedFsAndDatabase(&newmigrate.EmbedFsAndDatabaseParam{
     MigrationsFS:     &migrationsFS,
     EmbedPath:        "migrations",
     DatabaseName:     "mysql",
     DatabaseInstance: migrationDB,
 }))
 ```
+
+`MigrationsFS` takes a `fs.FS`; an `embed.FS` ships the scripts inside the built program.
 
 ## Examples
 
@@ -288,12 +295,3 @@ Welcome to contribute to this project via submitting merge requests and reportin
 **Have Fun Coding with this package!** 🎉🎉🎉
 
 <!-- TEMPLATE (EN) CLOSE: STANDARD PROJECT FOOTER -->
-
----
-
-<!-- TEMPLATE (EN) BEGIN: GITHUB STARS -->
-
-## GitHub Stars
-
-[![Stargazers](https://starchart.cc/yylego/go-migrate.svg?variant=adaptive)](https://starchart.cc/yylego/go-migrate)
-<!-- TEMPLATE (EN) CLOSE: GITHUB STARS -->

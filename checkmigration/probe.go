@@ -6,7 +6,7 @@ import "gorm.io/gorm"
 // probeDialect 将 SQL 输出限定在捕获器的调试开关内。
 type probeDialect struct {
 	gorm.Dialector
-	capture *SQLCapture
+	capture *statementCapture
 }
 
 func (d probeDialect) Migrator(db *gorm.DB) gorm.Migrator {

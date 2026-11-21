@@ -25,12 +25,12 @@ func NewMigrateCmd(param *migrationparam.MigrationParam) *cobra.Command {
 		Long:  "Database migration",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			migration, cleanup := param.GetMigration()
+			migration, cleanup := param.Migration()
 			defer cleanup()
 
-			version, incomplete, err := migration.Version()
-			utils.WhistleCause(err) // panic when cause is not expected
-			if incomplete {
+			version, unfinished, err := migration.Version()
+			utils.HandleCause(err) // panic when cause is not expected
+			if unfinished {
 				tint.RED.ShowMessage(version, "(DIRTY)")
 			} else {
 				tint.GREEN.ShowMessage(version)
@@ -39,8 +39,8 @@ func NewMigrateCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	}
 
 	rootCmd.AddCommand(newBatchCmd(param)) // Append batch subcommand // 添加批量迁移子命令
-	rootCmd.AddCommand(newIncCMD(param))   // Append `inc` subcommand // 添加 `inc` 子命令
-	rootCmd.AddCommand(newDecCMD(param))   // Append `dec` subcommand // 添加 `dec` 子命令
+	rootCmd.AddCommand(newIncCmd(param))   // Append `inc` subcommand // 添加 `inc` 子命令
+	rootCmd.AddCommand(newDecCmd(param))   // Append `dec` subcommand // 添加 `dec` 子命令
 
 	return rootCmd
 }
@@ -56,54 +56,54 @@ func newBatchCmd(param *migrationparam.MigrationParam) *cobra.Command {
 		Short: "Run pending migration files",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			migration, cleanup := param.GetMigration()
+			migration, cleanup := param.Migration()
 			defer cleanup()
 
 			// Perform complete database upgrade
 			// 执行完整的数据库升级
-			utils.WhistleCause(migration.Up())
+			utils.HandleCause(migration.Up())
 		},
 	}
 }
 
-// newDecCMD creates a command to revert one migration step
+// newDecCmd creates a command to revert one migration step
 // Reverts the database schema to the preceding version
 //
-// newDecCMD 创建用于回滚一个迁移步骤的命令
-// 安全地将数据库结构回退一个版本
-func newDecCMD(param *migrationparam.MigrationParam) *cobra.Command {
+// newDecCmd 创建用于回滚一个迁移步骤的命令
+// 将数据库结构回退到上一个版本
+func newDecCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dec",
 		Short: "Rollback one step (-1)",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			migration, cleanup := param.GetMigration()
+			migration, cleanup := param.Migration()
 			defer cleanup()
 
 			// Revert one database migration step
 			// 将数据库回滚一个迁移步骤
-			utils.WhistleCause(migration.Steps(-1))
+			utils.HandleCause(migration.Steps(-1))
 		},
 	}
 }
 
-// newIncCMD creates a command to execute the next migration step
+// newIncCmd creates a command to execute the next migration step
 // Advances the database schema to the next version
 //
-// newIncCMD 创建用于执行下一个迁移步骤的命令
+// newIncCmd 创建用于执行下一个迁移步骤的命令
 // 将数据库结构向前推进一个版本
-func newIncCMD(param *migrationparam.MigrationParam) *cobra.Command {
+func newIncCmd(param *migrationparam.MigrationParam) *cobra.Command {
 	return &cobra.Command{
 		Use:   "inc",
 		Short: "Run next step (+1)",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			migration, cleanup := param.GetMigration()
+			migration, cleanup := param.Migration()
 			defer cleanup()
 
 			// Execute next migration step forward
 			// 向前执行下一个迁移步骤
-			utils.WhistleCause(migration.Steps(+1))
+			utils.HandleCause(migration.Steps(+1))
 		},
 	}
 }

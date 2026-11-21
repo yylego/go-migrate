@@ -5,7 +5,51 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/yylego/go-migrate/checkmigration"
 )
+
+func TestNewMigrationOp(t *testing.T) {
+	t.Run("postgres-comment", func(t *testing.T) {
+		op, match := checkmigration.NewMigrationOp(`COMMENT ON COLUMN "users"."name" IS '名称'`)
+		require.True(t, match)
+		require.Equal(t, `COMMENT ON COLUMN "users"."name" IS '名称'`, op.ForwardSQL)
+	})
+
+	t.Run("postgres-sequence", func(t *testing.T) {
+		_, match := checkmigration.NewMigrationOp(`CREATE SEQUENCE IF NOT EXISTS "users_id_seq" AS bigint`)
+		require.True(t, match)
+		_, match = checkmigration.NewMigrationOp(`ALTER SEQUENCE "users_id_seq" OWNED BY "users"."id"`)
+		require.True(t, match)
+		_, match = checkmigration.NewMigrationOp(`DROP SEQUENCE IF EXISTS "users_id_seq"`)
+		require.True(t, match)
+	})
+
+	t.Run("schema-probe-skipped", func(t *testing.T) {
+		_, match := checkmigration.NewMigrationOp(`SELECT description FROM pg_catalog.pg_description`)
+		require.False(t, match)
+	})
+}
+
+func TestMigrationOps_ForwardSQLs(t *testing.T) {
+	createOp, match := checkmigration.NewMigrationOp("CREATE TABLE `users` (`id` integer)")
+	require.True(t, match)
+	addColumnOp, match := checkmigration.NewMigrationOp("ALTER TABLE `users` ADD `age` bigint")
+	require.True(t, match)
+
+	ops := checkmigration.MigrationOps{createOp, addColumnOp}
+	require.Equal(t, []string{"CREATE TABLE `users` (`id` integer)", "ALTER TABLE `users` ADD `age` bigint"}, ops.ForwardSQLs())
+}
+
+func TestMigrationOps_ForwardScript(t *testing.T) {
+	createOp, match := checkmigration.NewMigrationOp("CREATE TABLE `users` (`id` integer)")
+	require.True(t, match)
+	addColumnOp, match := checkmigration.NewMigrationOp("ALTER TABLE `users` ADD `age` bigint")
+	require.True(t, match)
+
+	ops := checkmigration.MigrationOps{createOp, addColumnOp}
+	require.Equal(t, "CREATE TABLE `users` (`id` integer);\n\nALTER TABLE `users` ADD `age` bigint;\n", ops.ForwardScript())
+	require.Empty(t, checkmigration.MigrationOps{}.ForwardScript())
+}
 
 func Test_extractTableNameFromCreateTable(t *testing.T) {
 	t.Run("case-1", func(t *testing.T) {

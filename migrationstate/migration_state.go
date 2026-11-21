@@ -4,13 +4,14 @@
 package migrationstate
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/yylego/erero"
 	"github.com/yylego/go-migrate/checkmigration"
@@ -38,13 +39,14 @@ type Config struct {
 // 包含理解迁移状态所需的相关信息
 type Status struct {
 	DatabaseVersion     uint     // Current database version // 当前数据库版本
-	IsIncomplete        bool     // Incomplete migration state flag // 数据库迁移未完成状态标志
+	IsUnfinished        bool     // The last migration did not finish, what golang-migrate calls dirty // 上次迁移没有跑完，即 golang-migrate 说的 dirty
 	HasMigrated         bool     // Migration applied flag // 迁移已应用标志
 	LatestScriptVersion uint     // Latest version in scripts DIR // 脚本目录中的最新版本
 	ScriptCount         int      // Count of migration scripts // 迁移脚本数量
 	PendingCount        int      // Count of pending migrations // 待执行迁移数量
-	HasUpToDate         bool     // Database is at latest version flag // 数据库已是最新版本标志
+	IsUpToDate          bool     // No pending migration, and the last migration finished // 没有待执行迁移，上次迁移也已完成
 	PendingVersions     []uint   // List of pending migration versions // 待执行迁移版本列表
+	SchemaChecked       bool     // Models were given and compared with the database // 传了模型并和数据库做了比对
 	SchemaDiffCount     int      // Count of schema differences // 结构差异数量
 	SchemaDiffSQLs      []string // SQL statements showing schema differences // 结构差异的 SQL 语句
 }
@@ -57,18 +59,17 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 
 	// Get database version
 	// 获取数据库版本
-	version, incomplete, err := migration.Version()
-	if err != nil {
-		if errors.Is(err, migrate.ErrNilVersion) {
-			status.HasMigrated = false
-			status.DatabaseVersion = 0
-		} else {
-			return nil, erero.Wro(err)
-		}
-	} else {
+	version, unfinished, err := migration.Version()
+	switch {
+	case errors.Is(err, migrate.ErrNilVersion):
+		// No migration has run yet: HasMigrated stays false, DatabaseVersion stays 0
+		// 还没有跑过迁移：HasMigrated 保持 false，DatabaseVersion 保持 0
+	case err != nil:
+		return nil, erero.Wro(err)
+	default:
 		status.HasMigrated = true
 		status.DatabaseVersion = version
-		status.IsIncomplete = incomplete
+		status.IsUnfinished = unfinished
 	}
 
 	// Scan scripts DIR and extract versions
@@ -90,7 +91,9 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 		}
 	}
 	status.PendingCount = len(status.PendingVersions)
-	status.HasUpToDate = status.PendingCount == 0
+	// When the last migration did not finish, the database is not up to date
+	// 上次迁移停在半路（未完成状态），不算已是最新
+	status.IsUpToDate = status.PendingCount == 0 && !status.IsUnfinished
 
 	// Check schema differences when objects are provided
 	// 当提供对象时检查结构差异
@@ -99,7 +102,8 @@ func GetStatus(db *gorm.DB, migration *migrate.Migrate, scriptsPath string, obje
 		if err != nil {
 			return nil, erero.Wro(err)
 		}
-		status.SchemaDiffSQLs = migrateOps.GetForwardSQLs()
+		status.SchemaChecked = true
+		status.SchemaDiffSQLs = migrateOps.ForwardSQLs()
 		status.SchemaDiffCount = len(status.SchemaDiffSQLs)
 	}
 
@@ -129,15 +133,7 @@ func scanScriptVersions(scriptsPath string) ([]uint, error) {
 		versionSet[migration.Version] = true
 	}
 
-	versions := make([]uint, 0, len(versionSet))
-	for v := range versionSet {
-		versions = append(versions, v)
-	}
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i] < versions[j]
-	})
-
-	return versions, nil
+	return slices.Sorted(maps.Keys(versionSet)), nil
 }
 
 // ShowStatus outputs status information in a readable format
@@ -153,7 +149,7 @@ func ShowStatus(status *Status) {
 	// Database version
 	// 数据库版本
 	if status.HasMigrated {
-		if status.IsIncomplete {
+		if status.IsUnfinished {
 			tint.RED.ShowMessage(fmt.Sprintf("Database Version: %d (DIRTY)", status.DatabaseVersion))
 		} else {
 			tint.GREEN.ShowMessage(fmt.Sprintf("Database Version: %d", status.DatabaseVersion))
@@ -172,22 +168,28 @@ func ShowStatus(status *Status) {
 
 	// Pending migrations
 	// 待执行迁移
-	if status.PendingCount > 0 {
+	switch {
+	case status.PendingCount > 0:
 		tint.YELLOW.ShowMessage(fmt.Sprintf("Pending Migrations: %d", status.PendingCount))
 		fmt.Println("  Versions:", status.PendingVersions)
-	} else {
+	case status.IsUnfinished:
+		tint.YELLOW.ShowMessage("Pending Migrations: 0 (not up to date - the last migration did not finish)")
+	default:
 		tint.GREEN.ShowMessage("Pending Migrations: 0 (up to date)")
 	}
 
 	// Schema differences
 	// 结构差异
-	if status.SchemaDiffCount > 0 {
+	switch {
+	case !status.SchemaChecked:
+		tint.YELLOW.ShowMessage("Schema Differences: (not checked - no models given)")
+	case status.SchemaDiffCount > 0:
 		tint.YELLOW.ShowMessage(fmt.Sprintf("Schema Differences: %d", status.SchemaDiffCount))
 		fmt.Println("  (GORM detected schema differences; inspect migration scripts before applying changes)")
 		for i, statement := range status.SchemaDiffSQLs {
 			fmt.Println("->", i+1, "->", statement)
 		}
-	} else if status.SchemaDiffCount == 0 && len(status.SchemaDiffSQLs) == 0 {
+	default:
 		tint.GREEN.ShowMessage("Schema Differences: 0 (Models match database)")
 	}
 }
@@ -202,10 +204,10 @@ func NewStatusCmd(cfg *Config) *cobra.Command {
 		Long:  "Show current database version, script versions, pending migrations and schema differences",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			migration, cleanup := cfg.Param.GetMigration()
+			migration, cleanup := cfg.Param.Migration()
 			defer cleanup()
 
-			db, cleanup2 := cfg.Param.GetDB()
+			db, cleanup2 := cfg.Param.DB()
 			defer cleanup2()
 			status, err := GetStatus(db, migration, cfg.ScriptsPath, cfg.Objects)
 			must.Done(err)
